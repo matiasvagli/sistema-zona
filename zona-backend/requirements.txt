@@ -1,0 +1,10 @@
+Django>=5.0,<5.1
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+django-filter
+psycopg2-binary
+python-decouple
+Pillow
+drf-spectacular
+dj-database-url
