@@ -29,6 +29,26 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                         dataProvider={dataProvider}
                         authProvider={authProvider}
                         routerProvider={routerProvider}
+                        accessControlProvider={{
+                            can: async ({ resource, action }) => {
+                                const permissions = await authProvider.getPermissions();
+                                
+                                // Si es staff, puede hacer todo
+                                if (permissions?.is_staff) {
+                                    return { can: true };
+                                }
+
+                                // Si no es staff, solo puede ver 'pipeline'
+                                if (resource === "pipeline" || resource === "dashboard") {
+                                    return { can: true };
+                                }
+
+                                return {
+                                    can: false,
+                                    reason: "No tienes permisos para acceder a este recurso",
+                                };
+                            },
+                        }}
                         notificationProvider={useNotificationProvider}
                         resources={[
                             {
@@ -52,6 +72,9 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                             {
                                 name: "work-orders",
                                 list: "/work-orders",
+                                create: "/work-orders/create",
+                                edit: "/work-orders/edit/:id",
+                                show: "/work-orders/:id",
                                 meta: { label: "Órdenes de Trabajo" },
                             },
                             {
@@ -62,6 +85,8 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                             {
                                 name: "sectors",
                                 list: "/sectors",
+                                create: "/sectors/create",
+                                edit: "/sectors/edit/:id",
                                 meta: { label: "Sectores" },
                             },
                             {
@@ -73,6 +98,13 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                                 name: "campaigns",
                                 list: "/campaigns",
                                 meta: { label: "Campañas" },
+                            },
+                            {
+                                name: "users",
+                                list: "/users",
+                                create: "/users/create",
+                                edit: "/users/edit/:id",
+                                meta: { label: "Usuarios" },
                             },
                         ]}
                         options={{

@@ -3,8 +3,25 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     sector_name = serializers.ReadOnlyField(source='sector.name')
+    password = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'sector', 'sector_name', 'groups')
-        read_only_fields = ('id', 'groups')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'sector', 'sector_name', 'password', 'is_staff')
+        read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().create(validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user

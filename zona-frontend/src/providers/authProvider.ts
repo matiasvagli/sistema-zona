@@ -54,7 +54,23 @@ export const authProvider: AuthProvider = {
             redirectTo: "/login",
         };
     },
-    getPermissions: async () => null,
+    getPermissions: async () => {
+        if (typeof window === "undefined") return null;
+        const token = localStorage.getItem("access_token");
+        if (token) {
+            try {
+                const { data } = await axios.get(`${API_URL}/users/me/`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                return data; // Retornamos el objeto usuario completo como permisos
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    },
     getIdentity: async () => {
         if (typeof window === "undefined") return null;
 
