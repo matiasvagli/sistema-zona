@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useGetIdentity, useList, useTable } from "@refinedev/core";
+import { useGetIdentity, useList } from "@refinedev/core";
 import {
   Typography, Row, Col, Card, Button, List, Avatar, Tag, Badge,
   Divider, Progress, Spin, Drawer, Tooltip, Empty, Tabs, Space, Table,
@@ -18,9 +18,6 @@ import {
   CalendarOutlined,
   ToolOutlined,
   BellOutlined,
-  CheckCircleOutlined,
-  WarningOutlined,
-  InfoCircleOutlined,
   ThunderboltOutlined,
   ClockCircleOutlined,
   FireOutlined,
@@ -39,12 +36,6 @@ const today = new Date().toLocaleDateString("es-AR", {
   weekday: "long", year: "numeric", month: "long", day: "numeric",
 });
 
-const activityConfig = {
-  success:    { color: "#52c41a", bg: "#f6ffed", icon: <CheckCircleOutlined /> },
-  info:       { color: "#1890ff", bg: "#e6f7ff", icon: <InfoCircleOutlined /> },
-  warning:    { color: "#faad14", bg: "#fffbe6", icon: <WarningOutlined /> },
-  processing: { color: "#722ed1", bg: "#f9f0ff", icon: <ThunderboltOutlined /> },
-};
 
 const taskStatusConfig: Record<string, { color: string; label: string }> = {
   pendiente:  { color: "default",    label: "Pendiente"  },
@@ -93,11 +84,9 @@ export default function Dashboard() {
     pagination: { pageSize: 10 },
   });
 
-  const { tableProps: clientTableProps } = useTable({
-    resource: "clients",
-    syncWithLocation: false,
-    pagination: { pageSize: 10 },
-  });
+  const { result: usersResult } = useList({ resource: "users", pagination: { pageSize: 50 } });
+  const { result: tasksResult } = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
+  const { result: clientsResult } = useList({ resource: "clients", pagination: { pageSize: 50 } });
 
   const otLoading = otQuery.isLoading;
   const workOrdersData = otResult;
@@ -116,12 +105,6 @@ export default function Dashboard() {
     { title: "Productos",    value: 320, icon: <ShoppingCartOutlined />, color: "#52c41a", trend: "+8%",  up: true  },
   ];
 
-  const activities = [
-    { title: "OT #452 Completada",     time: "hace 5 min",   user: "Juan Pérez",  type: "success"    as const },
-    { title: "Nuevo Presupuesto #12",  time: "hace 12 min",  user: "Ana García",  type: "info"       as const },
-    { title: "Stock Crítico: Lona",    time: "hace 1 hora",  user: "Sistema",     type: "warning"    as const },
-    { title: "OT #455 Iniciada",       time: "hace 2 horas", user: "Carlos Ruiz", type: "processing" as const },
-  ];
 
   const quickActions = [
     { label: "Nueva OT",      icon: <PlusOutlined />,     color: "#1890ff", path: "/work-orders/create" },
@@ -189,12 +172,35 @@ export default function Dashboard() {
                       onClick={() => setSelectedOT(ot)}
                     >
                       <div style={{ width: "100%" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                           <Text strong style={{ color: "#1890ff", fontSize: 13 }}>#{ot.id}</Text>
-                          <Text strong style={{ fontSize: 13, flex: 1 }}>{ot.title}</Text>
-                          <Tag color={ot.status === "en_proceso" ? "processing" : "default"} style={{ fontSize: 11 }}>{ot.status}</Tag>
+                          <Text strong style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ot.title}</Text>
+                          <Tag
+                            color={ot.status === "en_proceso" ? "processing" : ot.status === "completada" ? "success" : ot.status === "pausada" ? "warning" : "default"}
+                            style={{ fontSize: 11, margin: 0 }}
+                          >
+                            {ot.status === "en_proceso" ? "En proceso" : ot.status === "completada" ? "Completada" : ot.status === "pausada" ? "Pausada" : "Pendiente"}
+                          </Tag>
+                          {ot.priority === "inmediata"
+                            ? <Tag color="red" icon={<FireOutlined />} style={{ fontSize: 11, margin: 0 }}>Inmediata</Tag>
+                            : <Tag style={{ fontSize: 11, margin: 0, color: "#8c8c8c" }}>Normal</Tag>
+                          }
+                          {tasks.length > 0 && (
+                            <Tooltip title="Sectores">
+                              <span style={{ display: "flex", gap: 4 }}>
+                                {tasks.map((t: any) => (
+                                  <span key={t.id} style={{
+                                    width: 8, height: 8, borderRadius: "50%",
+                                    background: t.status === "completada" ? "#52c41a" : t.status === "en_proceso" ? "#1890ff" : t.status === "bloqueada" ? "#ff4d4f" : "#d9d9d9",
+                                    display: "inline-block",
+                                  }} />
+                                ))}
+                              </span>
+                            </Tooltip>
+                          )}
+                          <RightOutlined style={{ color: "#bfbfbf", fontSize: 11 }} />
                         </div>
-                        <Progress percent={progress} size="small" strokeColor={statusColor} />
+                        <Progress percent={progress} size="small" strokeColor={statusColor} showInfo={false} />
                       </div>
                     </List.Item>
                   );
@@ -206,23 +212,56 @@ export default function Dashboard() {
 
         <Col xs={24} lg={8}>
           <Card
-            title={<Title level={5} style={{ margin: 0 }}>Actividad Reciente</Title>}
+            title={<Title level={5} style={{ margin: 0 }}>Equipo</Title>}
             variant="borderless"
             style={{ borderRadius: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.06)", height: "100%" }}
+            extra={<Text type="secondary" style={{ fontSize: 12 }}>{(usersResult?.data || []).filter((u: any) => !u.is_staff).length} operarios</Text>}
           >
-            <List
-              itemLayout="horizontal"
-              dataSource={activities}
-              renderItem={(item) => (
-                <List.Item style={{ padding: "10px 0" }}>
-                  <List.Item.Meta
-                    avatar={<Avatar icon={activityConfig[item.type].icon} style={{ backgroundColor: activityConfig[item.type].bg, color: activityConfig[item.type].color }} />}
-                    title={<div style={{ display: "flex", justifyContent: "space-between" }}><Text strong style={{ fontSize: "13px" }}>{item.title}</Text><Text type="secondary" style={{ fontSize: "11px" }}>{item.time}</Text></div>}
-                    description={<Text type="secondary" style={{ fontSize: "12px" }}>{item.user}</Text>}
-                  />
-                </List.Item>
-              )}
-            />
+            {(usersResult?.data || []).length === 0 ? (
+              <Empty description="Sin empleados registrados" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <List
+                dataSource={(usersResult?.data || []) as any[]}
+                renderItem={(emp: any) => {
+                  const empTasks = (tasksResult?.data || []).filter((t: any) => t.assigned_to === emp.id);
+                  const activeTask = empTasks.find((t: any) => t.status === "en_proceso");
+                  const initials = emp.username?.slice(0, 2).toUpperCase() || "??";
+                  const isActive = !!activeTask;
+                  return (
+                    <List.Item style={{ padding: "10px 0", borderBottom: "1px solid #f5f5f5" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
+                        <div style={{ position: "relative", flexShrink: 0 }}>
+                          <Avatar
+                            style={{ background: isActive ? "#1890ff" : "#d9d9d9", color: "#fff", fontWeight: 700, fontSize: 13 }}
+                          >
+                            {initials}
+                          </Avatar>
+                          <span style={{
+                            position: "absolute", bottom: 0, right: 0,
+                            width: 10, height: 10, borderRadius: "50%",
+                            background: isActive ? "#52c41a" : "#d9d9d9",
+                            border: "2px solid #fff",
+                          }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text strong style={{ fontSize: 13, display: "block" }}>{emp.username}</Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {emp.sector_name || (emp.is_staff ? "Admin" : "Sin sector")}
+                          </Text>
+                        </div>
+                        {isActive ? (
+                          <Tooltip title={activeTask.work_order_title}>
+                            <Tag color="processing" style={{ fontSize: 11, margin: 0 }}>Trabajando</Tag>
+                          </Tooltip>
+                        ) : (
+                          <Tag style={{ fontSize: 11, margin: 0, color: "#8c8c8c" }}>Libre</Tag>
+                        )}
+                      </div>
+                    </List.Item>
+                  );
+                }}
+              />
+            )}
           </Card>
         </Col>
       </Row>
@@ -301,23 +340,20 @@ export default function Dashboard() {
                 style={{ borderRadius: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}
                 extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/clients/create")}>Añadir Cliente</Button>}
               >
-                <Table 
-                  {...clientTableProps as any} 
-                  rowKey="id" 
-                  size="middle"
-                  columns={[
-                    { title: 'Nombre', dataIndex: 'name', key: 'name', render: (text) => <Text strong>{text}</Text> },
-                    { title: 'CUIT/Identificación', dataIndex: 'tax_id', key: 'tax_id' },
-                    { title: 'Email', dataIndex: 'email', key: 'email' },
-                    { title: 'Teléfono', dataIndex: 'phone', key: 'phone' },
-                    { 
-                      title: 'Acciones', 
-                      key: 'actions', 
-                      render: (_, record: any) => (
-                        <Button size="small" type="link" onClick={() => router.push(`/clients/edit/${record.id}`)}>Editar</Button>
-                      ) 
-                    },
-                  ]}
+                <List
+                  dataSource={(clientsResult?.data || []) as any[]}
+                  renderItem={(c: any) => (
+                    <List.Item
+                      style={{ padding: "10px 0", cursor: "pointer" }}
+                      actions={[<Button key="edit" size="small" type="link" onClick={() => router.push(`/clients/edit/${c.id}`)}>Editar</Button>]}
+                    >
+                      <List.Item.Meta
+                        avatar={<Avatar icon={<UserOutlined />} style={{ background: "#1890ff" }} />}
+                        title={<Text strong>{c.name}</Text>}
+                        description={<Text type="secondary" style={{ fontSize: 12 }}>{[c.tax_id, c.email, c.phone].filter(Boolean).join(" · ")}</Text>}
+                      />
+                    </List.Item>
+                  )}
                 />
               </Card>
             ),
