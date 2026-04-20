@@ -3,9 +3,12 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGetIdentity, useList } from "@refinedev/core";
+import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
+import { ChatFloatingButton } from "@/components/ChatDrawer";
+import { axiosInstance } from "@/utils/axios-instance";
 import {
   Typography, Row, Col, Card, Button, List, Avatar, Tag,
-  Divider, Progress, Spin, Drawer, Tooltip, Empty, Space,
+  Divider, Progress, Spin, Drawer, Tooltip, Empty, Space, Badge,
 } from "antd";
 import {
   UserOutlined,
@@ -18,7 +21,9 @@ import {
   FireOutlined,
   RightOutlined,
   ArrowRightOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
+import { ChatDrawer } from "@/components/ChatDrawer";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/es";
@@ -56,7 +61,29 @@ function calcProgress(tasks: any[]): number {
 export default function Dashboard() {
   const { data: user, isLoading: userLoading } = useGetIdentity<any>();
   const router = useRouter();
+  usePresenceHeartbeat();
   const [selectedOT, setSelectedOT] = useState<any>(null);
+  const [chatUser, setChatUser] = useState<any>(null);
+  const [unreadPerSender, setUnreadPerSender] = useState<Record<string, number>>({});
+
+  // Polling para mensajes no leídos por usuario
+  React.useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const { data } = await axiosInstance.get("http://localhost:8000/api/v1/messages/unread-count/");
+        const mapping: Record<string, number> = {};
+        if (data && data.per_sender) {
+          Object.keys(data.per_sender).forEach(key => {
+            mapping[String(key)] = data.per_sender[key];
+          });
+        }
+        setUnreadPerSender(mapping);
+      } catch { /* ... */ }
+    };
+    fetchUnread();
+    const id = setInterval(fetchUnread, 8000); // Sincronizado a 8s
+    return () => clearInterval(id);
+  }, []);
 
   const { query: otQuery, result: otResult } = useList({
     resource: "work-orders",
@@ -65,7 +92,11 @@ export default function Dashboard() {
     pagination: { pageSize: 8 },
   });
 
-  const { result: usersResult }   = useList({ resource: "users",        pagination: { pageSize: 50  } });
+  const { result: usersResult }   = useList({ 
+    resource: "users", 
+    pagination: { pageSize: 50 },
+    queryOptions: { refetchInterval: 15000 } // Refresca cada 15 segundos
+  });
   const { result: tasksResult }   = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
   const { result: clientsResult } = useList({ resource: "clients",      pagination: { pageSize: 50  } });
   const { result: budgetsResult } = useList({
@@ -366,6 +397,9 @@ export default function Dashboard() {
                     <UserOutlined />
                   </div>
                   <Title level={5} style={{ margin: 0 }}>Equipo</Title>
+                  {unreadPerSender["group"] > 0 && (
+                    <Badge count="Nuevo" style={{ backgroundColor: "#52c41a", fontSize: 10, marginLeft: 8 }} />
+                  )}
                 </div>
                 <Text type="secondary" style={{ fontSize: 11 }}>
                   {(usersResult?.data || []).length} personas
@@ -376,13 +410,15 @@ export default function Dashboard() {
                 <Empty description="Sin empleados" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
               ) : (
                 <div>
-                  {((usersResult?.data || []) as any[]).slice(0, 6).map((emp: any, idx: number, arr) => {
-                    const empTasks = (tasksResult?.data || []).filter((t: any) => t.assigned_to === emp.id);
-                    const activeTask = empTasks.find((t: any) => t.status === "en_proceso");
+                {((usersResult?.data || []) as any[]).slice(0, 6).map((emp: any, idx: number, arr) => {
                     const initials = (emp.first_name?.[0] || emp.username?.[0] || "?").toUpperCase() +
                                      (emp.last_name?.[0] || emp.username?.[1] || "?").toUpperCase();
-                    const isActive = !!activeTask;
+                    const isOnline = !!emp.is_online;
+                    const isMe = emp.id === user?.id;
                     const isLast = idx === arr.length - 1;
+                    // Extraemos el conteo a una variable para evitar ambigüedad de tipos
+                    const empUnread: number = (unreadPerSender[String(emp.id)] ?? unreadPerSender[emp.id] ?? 0) as number;
+
                     return (
                       <div key={emp.id} style={{
                         display: "flex", alignItems: "center", gap: 10,
@@ -390,30 +426,53 @@ export default function Dashboard() {
                         borderBottom: isLast ? "none" : "1px solid #f5f5f5",
                       }}>
                         <div style={{ position: "relative", flexShrink: 0 }}>
-                          <Avatar style={{ background: isActive ? "#7c3aed" : "#e2e8f0", color: isActive ? "#fff" : "#64748b", fontWeight: 700, fontSize: 12 }}>
-                            {initials}
-                          </Avatar>
+                          <Badge 
+                            count={empUnread} 
+                            size="small" 
+                            offset={[-2, 2]}
+                          >
+                            <Avatar style={{ background: isOnline ? "#7c3aed" : "#e2e8f0", color: isOnline ? "#fff" : "#64748b", fontWeight: 700, fontSize: 12 }}>
+                              {initials}
+                            </Avatar>
+                          </Badge>
+                          {/* Indicador online */}
                           <span style={{
                             position: "absolute", bottom: 0, right: 0,
-                            width: 9, height: 9, borderRadius: "50%",
-                            background: isActive ? "#52c41a" : "#cbd5e1",
+                            width: 10, height: 10, borderRadius: "50%",
+                            background: isOnline ? "#22c55e" : "#cbd5e1",
                             border: "2px solid #fff",
+                            boxShadow: isOnline ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
+                            transition: "all 0.3s",
+                            zIndex: 10
                           }} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text strong style={{ fontSize: 13, display: "block" }}>
-                            {emp.first_name ? `${emp.first_name} ${emp.last_name || ""}`.trim() : emp.username}
-                          </Text>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Text strong style={{ fontSize: 13 }}>
+                              {emp.first_name ? `${emp.first_name} ${emp.last_name || ""}`.trim() : emp.username}
+                            </Text>
+                            {isMe && <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 11 }}>(vos)</span>}
+                          </div>
                           <Text type="secondary" style={{ fontSize: 11 }}>
-                            {emp.sector_name || (emp.is_staff ? "Admin" : "Sin sector")}
+                            {emp.sector_name || (emp.is_staff ? "Admin" : "Sin sector")} · {isOnline ? <span style={{ color: "#22c55e", fontWeight: 600 }}>Online</span> : "Offline"}
                           </Text>
                         </div>
-                        <Tag
-                          color={isActive ? "processing" : undefined}
-                          style={{ fontSize: 10, margin: 0, flexShrink: 0, color: isActive ? undefined : "#94a3b8" }}
-                        >
-                          {isActive ? "Trabajando" : "Libre"}
-                        </Tag>
+                        {!isMe && (
+                          <Tooltip title={empUnread > 0 ? `Tenés ${empUnread} mensajes sin leer de ${emp.first_name || emp.username}` : `Escribirle a ${emp.first_name || emp.username}`}>
+                              <Button
+                                size="middle"
+                                type="text"
+                                icon={<MessageOutlined />}
+                                shape="circle"
+                                style={{ 
+                                  color: empUnread > 0 ? "#ff4d4f" : "#7c3aed", 
+                                  background: empUnread > 0 ? "#fff1f0" : "transparent",
+                                  flexShrink: 0 
+                                }}
+                                onClick={() => setChatUser(emp)}
+                              />
+                          </Tooltip>
+                        )}
                       </div>
                     );
                   })}
@@ -550,6 +609,18 @@ export default function Dashboard() {
           </div>
         )}
       </Drawer>
+      {user?.id && <ChatFloatingButton currentUserId={user.id} />}
+
+      {/* Chat directo a un miembro del equipo */}
+      {chatUser && user?.id && (
+        <ChatDrawer
+          open={!!chatUser}
+          onClose={() => setChatUser(null)}
+          currentUserId={user.id}
+          recipientId={chatUser.id}
+          recipientName={chatUser.first_name ? `${chatUser.first_name} ${chatUser.last_name || ""}`.trim() : chatUser.username}
+        />
+      )}
     </div>
   );
 }

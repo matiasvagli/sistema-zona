@@ -23,6 +23,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   aprobado:  { color: "success", label: "Aprobado"  },
   rechazado: { color: "error",   label: "Rechazado" },
   facturado: { color: "blue",    label: "Facturado" },
+  vencido:   { color: "error",   label: "Vencido"   },
 };
 
 export default function BudgetsPage() {
@@ -124,8 +125,8 @@ export default function BudgetsPage() {
         ),
     },
     {
-      title: "Fecha",
-      dataIndex: "created_at",
+      title: "Emisión",
+      dataIndex: "issue_date",
       width: 120,
       render: (d: string) => <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(d).format("DD/MM/YYYY")}</Text>,
     },

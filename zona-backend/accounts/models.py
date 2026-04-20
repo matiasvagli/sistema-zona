@@ -11,9 +11,17 @@ class User(AbstractUser):
         blank=True,
         related_name='users'
     )
+    last_seen = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.username
+
+    @property
+    def is_online(self):
+        from django.utils import timezone
+        if not self.last_seen:
+            return False
+        return (timezone.now() - self.last_seen).total_seconds() < 120  # 2 minutos
 
 class Perfil(models.Model):
     ROLES = [

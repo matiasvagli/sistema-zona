@@ -5,14 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useList } from "@refinedev/core";
 import {
   Typography, Form, Input, Select, Button,
-  notification, Row, Col, InputNumber, Popconfirm, Divider, Tag,
+  notification, Row, Col, InputNumber, Popconfirm, Divider, Tag, DatePicker,
 } from "antd";
 import {
   ArrowLeftOutlined, SaveOutlined, PlusOutlined, DeleteOutlined,
   UserOutlined, ShoppingOutlined, FileTextOutlined, CalculatorOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { ClientSelect } from "@/components/ClientSelect";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -78,6 +80,7 @@ export default function BudgetCreatePage() {
         client: values.client,
         notes: values.notes || "",
         status: "borrador",
+        expiry_date: values.expiry_date ? dayjs(values.expiry_date).format("YYYY-MM-DD") : null,
       });
       await Promise.all(
         items.map((item) =>
@@ -189,12 +192,24 @@ export default function BudgetCreatePage() {
                 <Form.Item
                   label={<Text strong style={{ fontSize: 13 }}>Notas internas</Text>}
                   name="notes"
-                  style={{ marginBottom: 0 }}
                 >
                   <TextArea
                     rows={2}
                     placeholder="Detalles, aclaraciones, observaciones del presupuesto..."
                     style={{ borderRadius: 8, resize: "none" }}
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  label={<Text strong style={{ fontSize: 13 }}>Fecha de Vencimiento (opcional)</Text>}
+                  name="expiry_date"
+                  style={{ marginBottom: 0 }}
+                >
+                  <DatePicker 
+                    style={{ width: "100%", borderRadius: 8 }} 
+                    format="DD/MM/YYYY"
+                    placeholder="Seleccionar fecha"
+                    size="large"
                   />
                 </Form.Item>
               </div>

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'spaces',
     'campaigns',
     'employees',
+    'chat',
 ]
 
 MIDDLEWARE = [

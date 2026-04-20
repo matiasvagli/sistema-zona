@@ -10,6 +10,7 @@ import {
   ArrowLeftOutlined, CheckCircleOutlined, FileTextOutlined, LinkOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
+import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
@@ -20,6 +21,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   aprobado:  { color: "success", label: "Aprobado"  },
   rechazado: { color: "error",   label: "Rechazado" },
   facturado: { color: "blue",    label: "Facturado" },
+  vencido:   { color: "error",   label: "Vencido"   },
 };
 
 export default function BudgetDetailPage() {
@@ -224,6 +226,18 @@ export default function BudgetDetailPage() {
               <div style={{ marginTop: 4 }}>
                 <Tag color={st.color as any}>{st.label}</Tag>
               </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Fecha Emisión</Text>
+              <Text strong style={{ display: "block", marginTop: 2 }}>
+                {budget.issue_date ? dayjs(budget.issue_date).format("DD/MM/YYYY") : "—"}
+              </Text>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Vencimiento</Text>
+              <Text strong style={{ display: "block", marginTop: 2, color: budget.expiry_date && dayjs().isAfter(dayjs(budget.expiry_date)) ? "#ff4d4f" : "inherit" }}>
+                {budget.expiry_date ? dayjs(budget.expiry_date).format("DD/MM/YYYY") : "Sin vencimiento"}
+              </Text>
             </div>
             <div style={{ marginBottom: 12 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>Ítems</Text>

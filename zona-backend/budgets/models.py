@@ -7,6 +7,7 @@ class Budget(models.Model):
         APROBADO = 'aprobado', 'Aprobado'
         RECHAZADO = 'rechazado', 'Rechazado'
         FACTURADO = 'facturado', 'Facturado'
+        VENCIDO = 'vencido', 'Vencido'
 
     client = models.ForeignKey(
         'clients.Client',
@@ -32,6 +33,8 @@ class Budget(models.Model):
         related_name='budgets_created'
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    issue_date = models.DateField(auto_now_add=True, verbose_name="Fecha de emisión")
+    expiry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de vencimiento")
     notes = models.TextField(blank=True)
 
     @property

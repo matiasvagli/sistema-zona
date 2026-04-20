@@ -16,11 +16,16 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False)
     rol = serializers.CharField(source='perfil.rol', read_only=True)
     sector_memberships = SectorMembershipSerializer(many=True, read_only=True)
+    is_online = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'sector', 'sector_name', 'password', 'is_staff', 'rol', 'sector_memberships')
-        read_only_fields = ('id', 'rol', 'sector_memberships')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'sector', 'sector_name',
+                  'password', 'is_staff', 'rol', 'sector_memberships', 'is_online', 'last_seen')
+        read_only_fields = ('id', 'rol', 'sector_memberships', 'is_online', 'last_seen')
+
+    def get_is_online(self, obj):
+        return obj.is_online
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
