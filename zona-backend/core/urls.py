@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -7,11 +9,11 @@ from rest_framework_simplejwt.views import (
 )
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-from accounts.views import UserViewSet
+from accounts.views import UserViewSet, SectorMembershipViewSet
 from clients.views import ClientViewSet
 from inventory.views import ProductViewSet, StockMovementViewSet
-from budgets.views import BudgetViewSet
-from work_orders.views import WorkOrderViewSet
+from budgets.views import BudgetViewSet, BudgetItemViewSet
+from work_orders.views import WorkOrderViewSet, WorkOrderMaterialViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
 from spaces.views import AdSpaceViewSet, SpaceRentalViewSet
 from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
@@ -19,11 +21,14 @@ from employees.views import EmployeeViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
+router.register(r'sector-memberships', SectorMembershipViewSet)
 router.register(r'clients', ClientViewSet)
 router.register(r'products', ProductViewSet)
 router.register(r'stock-movements', StockMovementViewSet)
 router.register(r'budgets', BudgetViewSet)
+router.register(r'budget-items', BudgetItemViewSet)
 router.register(r'work-orders', WorkOrderViewSet)
+router.register(r'work-order-materials', WorkOrderMaterialViewSet)
 router.register(r'sectors', SectorViewSet)
 router.register(r'sector-tasks', SectorTaskViewSet)
 router.register(r'ad-spaces', AdSpaceViewSet)
@@ -46,4 +51,4 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

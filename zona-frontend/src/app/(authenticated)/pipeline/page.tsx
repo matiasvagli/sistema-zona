@@ -4,11 +4,11 @@ import React, { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useList, useGetIdentity } from "@refinedev/core";
 import {
-  Tag, Typography, Spin, Badge, Avatar, Tooltip, Button, Progress,
+  Tag, Typography, Spin, Tooltip, Button, Progress,
   notification, Modal, DatePicker,
 } from "antd";
 import {
-  ClockCircleOutlined, UserOutlined, WarningOutlined, FireOutlined,
+  ClockCircleOutlined, WarningOutlined, FireOutlined,
   PlayCircleOutlined, CheckCircleOutlined, StopOutlined, PlusOutlined,
   ReloadOutlined, EyeOutlined,
 } from "@ant-design/icons";
@@ -25,19 +25,27 @@ const { Title, Text } = Typography;
 const API = "http://localhost:8000/api/v1";
 
 const SECTOR_COLORS = [
-  { bg: "#e6f4ff", border: "#1890ff", header: "#1890ff" },
-  { bg: "#f9f0ff", border: "#722ed1", header: "#722ed1" },
-  { bg: "#fff7e6", border: "#fa8c16", header: "#fa8c16" },
-  { bg: "#f6ffed", border: "#52c41a", header: "#52c41a" },
-  { bg: "#fff1f0", border: "#ff4d4f", header: "#ff4d4f" },
-  { bg: "#e6fffb", border: "#13c2c2", header: "#13c2c2" },
+  { light: "#e6f4ff", border: "#1890ff", solid: "#1890ff", dark: "#0958d9" },
+  { light: "#f9f0ff", border: "#722ed1", solid: "#722ed1", dark: "#531dab" },
+  { light: "#fff7e6", border: "#fa8c16", solid: "#fa8c16", dark: "#d46b08" },
+  { light: "#f6ffed", border: "#52c41a", solid: "#52c41a", dark: "#389e0d" },
+  { light: "#fff1f0", border: "#ff4d4f", solid: "#ff4d4f", dark: "#cf1322" },
+  { light: "#e6fffb", border: "#13c2c2", solid: "#13c2c2", dark: "#08979c" },
 ];
 
-const taskStatus: Record<string, { color: string; label: string; bg: string }> = {
-  pendiente:  { color: "#8c8c8c", label: "Pendiente",  bg: "#f5f5f5"  },
-  en_proceso: { color: "#1890ff", label: "En proceso", bg: "#e6f7ff"  },
-  completada: { color: "#52c41a", label: "Completada", bg: "#f6ffed"  },
-  bloqueada:  { color: "#ff4d4f", label: "Bloqueada",  bg: "#fff1f0"  },
+const TASK_STATUS: Record<string, { color: string; bg: string; label: string; dot: string }> = {
+  pendiente:  { color: "#595959", bg: "#f5f5f5", label: "Pendiente",  dot: "#8c8c8c" },
+  en_proceso: { color: "#003eb3", bg: "#e6f4ff", label: "En proceso", dot: "#1890ff" },
+  completada: { color: "#237804", bg: "#f6ffed", label: "Completada", dot: "#52c41a" },
+  bloqueada:  { color: "#a8071a", bg: "#fff1f0", label: "Bloqueada",  dot: "#ff4d4f" },
+};
+
+const OT_STATUS: Record<string, { color: string; label: string }> = {
+  pendiente:  { color: "#8c8c8c", label: "Pendiente"  },
+  en_proceso: { color: "#1890ff", label: "En proceso" },
+  pausada:    { color: "#fa8c16", label: "Pausada"    },
+  completada: { color: "#52c41a", label: "Completada" },
+  cancelada:  { color: "#ff4d4f", label: "Cancelada"  },
 };
 
 function timeLeft(estimated: string): { text: string; urgent: boolean } {
@@ -64,14 +72,15 @@ export default function PipelinePage() {
 
   const { query: tasksQuery, result: tasksResult } = useList({
     resource: "sector-tasks",
-    pagination: { pageSize: 200 },
+    pagination: { pageSize: 500 },
     queryOptions: { queryKey: ["sector-tasks", refreshKey] } as any,
   });
 
-  const { result: workOrdersResult } = useList({
+  const { query: woQuery, result: woResult } = useList({
     resource: "work-orders",
     pagination: { pageSize: 200 },
-    queryOptions: { queryKey: ["work-orders", refreshKey] } as any,
+    filters: [{ field: "status__in", operator: "in", value: ["pendiente", "en_proceso", "pausada"] }],
+    queryOptions: { queryKey: ["work-orders-pipeline", refreshKey] } as any,
   });
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
@@ -103,7 +112,7 @@ export default function PipelinePage() {
     }
   };
 
-  const isLoading = sectorsQuery.isLoading || tasksQuery.isLoading;
+  const isLoading = sectorsQuery.isLoading || tasksQuery.isLoading || woQuery.isLoading;
 
   if (isLoading) {
     return (
@@ -116,47 +125,56 @@ export default function PipelinePage() {
 
   let sectors: any[] = sectorsResult?.data || [];
   const tasks: any[] = tasksResult?.data || [];
-  const workOrders: any[] = workOrdersResult?.data || [];
+  const workOrders: any[] = woResult?.data || [];
 
+  // Filter sectors by user's sector if not staff
   if (identity && !identity.is_staff && identity.sector) {
     sectors = sectors.filter((s: any) => s.id === identity.sector);
   }
 
-  const woMap = Object.fromEntries(workOrders.map((w) => [w.id, w]));
+  // Build task map: taskMap[workOrderId][sectorId] = task
+  const taskMap: Record<number, Record<number, any>> = {};
+  tasks.forEach((t) => {
+    if (!taskMap[t.work_order]) taskMap[t.work_order] = {};
+    taskMap[t.work_order][t.sector] = t;
+  });
 
-  // Stats globales
-  const totalTasks   = tasks.length;
-  const inProgress   = tasks.filter((t) => t.status === "en_proceso").length;
-  const completed    = tasks.filter((t) => t.status === "completada").length;
-  const blocked      = tasks.filter((t) => t.status === "bloqueada").length;
+  // Only show WOs that have at least one sector task
+  const activeWOs = workOrders.filter((wo) => taskMap[wo.id] && Object.keys(taskMap[wo.id]).length > 0);
+
+  // Global stats
+  const totalWOs   = activeWOs.length;
+  const inProgress = activeWOs.filter((wo) => wo.status === "en_proceso").length;
+  const blocked    = tasks.filter((t) => t.status === "bloqueada").length;
+  const completed  = tasks.filter((t) => t.status === "completada").length;
+
+  const COL_WIDTH = 170;
+  const LEFT_WIDTH = 260;
 
   return (
-    <div style={{ padding: "24px", background: "#f0f2f5", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ padding: "24px", background: "#f0f2f5", minHeight: "100vh" }}>
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
           <Title level={2} style={{ margin: 0 }}>Pipeline de Producción</Title>
-          <Text type="secondary">Estado en tiempo real de las órdenes por sector</Text>
+          <Text type="secondary">Línea de trabajo por orden y sector</Text>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {/* Mini stats */}
-          <div style={{ display: "flex", gap: 8, marginRight: 8, flexWrap: "wrap" }}>
-            <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#e6f7ff", border: "none", color: "#1890ff" }}>
-              {totalTasks} tareas
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#e6f7ff", border: "none", color: "#1890ff" }}>
+            {totalWOs} órdenes activas
+          </Tag>
+          <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#e6f4ff", border: "none", color: "#722ed1" }}>
+            {inProgress} en proceso
+          </Tag>
+          {blocked > 0 && (
+            <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#fff1f0", border: "none", color: "#ff4d4f" }}>
+              <WarningOutlined style={{ marginRight: 4 }} />{blocked} bloqueada{blocked > 1 ? "s" : ""}
             </Tag>
-            <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#e6f4ff", border: "none", color: "#722ed1" }}>
-              {inProgress} en proceso
-            </Tag>
-            {blocked > 0 && (
-              <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#fff1f0", border: "none", color: "#ff4d4f" }}>
-                <WarningOutlined style={{ marginRight: 4 }} />{blocked} bloqueada{blocked > 1 ? "s" : ""}
-              </Tag>
-            )}
-            <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#f6ffed", border: "none", color: "#52c41a" }}>
-              {completed} completada{completed > 1 ? "s" : ""}
-            </Tag>
-          </div>
+          )}
+          <Tag style={{ padding: "4px 12px", borderRadius: 20, fontSize: 13, background: "#f6ffed", border: "none", color: "#52c41a" }}>
+            {completed} completada{completed > 1 ? "s" : ""}
+          </Tag>
           <Button icon={<ReloadOutlined />} onClick={refresh} />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/work-orders/create")}>
             Nueva OT
@@ -164,224 +182,257 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {/* Kanban */}
-      <div style={{ display: "flex", gap: 20, overflowX: "auto", flex: 1, paddingBottom: 16, alignItems: "flex-start" }}>
-        {sectors.map((sector: any, sectorIdx: number) => {
-          const palette = SECTOR_COLORS[sectorIdx % SECTOR_COLORS.length];
-          const sectorTasks = tasks.filter((t: any) => t.sector === sector.id);
-          const sectorInProgress = sectorTasks.filter((t) => t.status === "en_proceso").length;
-          const sectorBlocked = sectorTasks.filter((t) => t.status === "bloqueada").length;
+      {activeWOs.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "80px 0" }}>
+          <Text type="secondary" style={{ fontSize: 16 }}>No hay órdenes activas en el pipeline.</Text>
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: LEFT_WIDTH + sectors.length * COL_WIDTH }}>
 
-          return (
-            <div
-              key={sector.id}
-              style={{
-                flex: "0 0 300px",
-                borderRadius: 18,
-                background: "#ebedf0",
-                display: "flex",
-                flexDirection: "column",
-                maxHeight: "calc(100vh - 220px)",
-                overflow: "hidden",
-              }}
-            >
-              {/* Column header */}
-              <div style={{
-                background: palette.header,
-                borderRadius: "18px 18px 0 0",
-                padding: "14px 16px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
-                <div>
-                  <Text strong style={{ color: "#fff", fontSize: 15 }}>{sector.name}</Text>
-                  {sectorBlocked > 0 && (
-                    <Tag color="red" style={{ marginLeft: 8, fontSize: 11 }}>
-                      <WarningOutlined /> {sectorBlocked} bloq.
-                    </Tag>
-                  )}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {sectorInProgress > 0 && (
-                    <span style={{ background: "rgba(255,255,255,0.25)", color: "#fff", fontSize: 11, padding: "2px 8px", borderRadius: 10 }}>
-                      {sectorInProgress} activa{sectorInProgress > 1 ? "s" : ""}
-                    </span>
-                  )}
-                  <Badge
-                    count={sectorTasks.length}
-                    style={{ backgroundColor: "rgba(255,255,255,0.9)", color: palette.header, fontWeight: 700, boxShadow: "none" }}
-                  />
-                </div>
-              </div>
+            {/* Header row */}
+            <thead>
+              <tr>
+                {/* OT column header */}
+                <th style={{
+                  width: LEFT_WIDTH,
+                  minWidth: LEFT_WIDTH,
+                  padding: "14px 20px",
+                  background: "#1e293b",
+                  color: "#fff",
+                  textAlign: "left",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  borderRight: "1px solid rgba(255,255,255,0.1)",
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 3,
+                }}>
+                  Orden de Trabajo
+                </th>
+                {/* Sector column headers */}
+                {sectors.map((sector, idx) => {
+                  const palette = SECTOR_COLORS[idx % SECTOR_COLORS.length];
+                  const sectorTasks = tasks.filter((t) => t.sector === sector.id);
+                  const activeCount = sectorTasks.filter((t) => t.status === "en_proceso").length;
+                  return (
+                    <th
+                      key={sector.id}
+                      style={{
+                        width: COL_WIDTH,
+                        minWidth: COL_WIDTH,
+                        padding: "14px 16px",
+                        background: palette.solid,
+                        color: "#fff",
+                        textAlign: "center",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        borderRight: "1px solid rgba(255,255,255,0.15)",
+                      }}
+                    >
+                      <div>{sector.name}</div>
+                      {activeCount > 0 && (
+                        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>
+                          {activeCount} activa{activeCount > 1 ? "s" : ""}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
 
-              {/* Cards */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 10 }}>
-                {sectorTasks.length === 0 ? (
-                  <div style={{
-                    border: `2px dashed ${palette.border}40`,
-                    borderRadius: 12,
-                    padding: "32px 16px",
-                    textAlign: "center",
-                    color: "#bfbfbf",
-                  }}>
-                    <Text type="secondary" style={{ fontSize: 13 }}>Sin trabajos asignados</Text>
-                  </div>
-                ) : (
-                  sectorTasks.map((task: any) => {
-                    const st = taskStatus[task.status] || taskStatus.pendiente;
-                    const wo = woMap[task.work_order];
-                    const allWoTasks = tasks.filter((t) => t.work_order === task.work_order);
-                    const otProgress = allWoTasks.length
-                      ? Math.round(allWoTasks.filter((t) => t.status === "completada").length / allWoTasks.length * 100)
-                      : 0;
-                    const isUrgent = task.priority === "inmediata" || wo?.priority === "inmediata";
-                    const isBlocked = task.status === "bloqueada";
-                    const isLoading = actionLoading === task.id;
-                    const tLeft = task.estimated_finish ? timeLeft(task.estimated_finish) : null;
+            {/* Work order rows */}
+            <tbody>
+              {activeWOs.map((wo, rowIdx) => {
+                const woTasks = taskMap[wo.id] || {};
+                const allTasks = Object.values(woTasks);
+                const completedCount = allTasks.filter((t: any) => t.status === "completada").length;
+                const otProgress = allTasks.length ? Math.round((completedCount / allTasks.length) * 100) : 0;
+                const otSt = OT_STATUS[wo.status] || OT_STATUS.pendiente;
+                const isEven = rowIdx % 2 === 0;
 
-                    return (
-                      <div
-                        key={task.id}
-                        style={{
-                          background: "#fff",
-                          borderRadius: 14,
-                          padding: "12px 14px",
-                          boxShadow: isBlocked
-                            ? "0 0 0 2px #ff4d4f40, 0 2px 8px rgba(0,0,0,0.06)"
-                            : "0 2px 8px rgba(0,0,0,0.06)",
-                          borderLeft: `4px solid ${isUrgent ? "#ff4d4f" : palette.border}`,
-                          opacity: task.status === "completada" ? 0.75 : 1,
-                          transition: "box-shadow 0.2s",
-                        }}
-                      >
-                        {/* Top: OT id + título + urgente */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <Text
-                              type="secondary"
-                              style={{ fontSize: 11, display: "block" }}
-                            >
-                              OT #{task.work_order}
-                              {wo?.client_name && ` · ${wo.client_name}`}
-                            </Text>
-                            <Text
-                              strong
-                              style={{ fontSize: 13, display: "block", lineHeight: 1.3, marginTop: 2 }}
-                              ellipsis={{ tooltip: task.work_order_title }}
-                            >
-                              {task.work_order_title}
-                            </Text>
+                return (
+                  <tr key={wo.id} style={{ background: isEven ? "#fff" : "#fafafa" }}>
+
+                    {/* OT info cell (sticky left) */}
+                    <td style={{
+                      padding: "14px 20px",
+                      borderRight: "1px solid #e2e8f0",
+                      borderBottom: "1px solid #e2e8f0",
+                      verticalAlign: "middle",
+                      background: isEven ? "#fff" : "#fafafa",
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 2,
+                      minWidth: LEFT_WIDTH,
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <Text type="secondary" style={{ fontSize: 11, whiteSpace: "nowrap" }}>OT #{wo.id}</Text>
+                            {wo.priority === "inmediata" && (
+                              <Tooltip title="Prioridad inmediata">
+                                <FireOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />
+                              </Tooltip>
+                            )}
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: otSt.color,
+                              background: otSt.color + "18",
+                              padding: "1px 6px",
+                              borderRadius: 4,
+                            }}>
+                              {otSt.label.toUpperCase()}
+                            </span>
                           </div>
-                          {isUrgent && (
-                            <Tooltip title="Prioridad inmediata">
-                              <FireOutlined style={{ color: "#ff4d4f", fontSize: 14, marginLeft: 6, flexShrink: 0 }} />
-                            </Tooltip>
+                          <Text
+                            strong
+                            style={{ fontSize: 13, display: "block", lineHeight: 1.3, marginBottom: 2 }}
+                            ellipsis={{ tooltip: wo.title }}
+                          >
+                            {wo.title}
+                          </Text>
+                          {wo.client_name && (
+                            <Text type="secondary" style={{ fontSize: 11 }}>{wo.client_name}</Text>
                           )}
                         </div>
+                        <Tooltip title="Ver OT completa">
+                          <Button
+                            size="small"
+                            type="text"
+                            icon={<EyeOutlined />}
+                            onClick={() => router.push(`/work-orders/${wo.id}`)}
+                            style={{ flexShrink: 0, marginLeft: 4 }}
+                          />
+                        </Tooltip>
+                      </div>
 
-                        {/* Status badge */}
-                        <div style={{ marginBottom: 10 }}>
-                          <span style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                            background: st.bg,
-                            color: st.color,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "2px 8px",
-                            borderRadius: 6,
-                          }}>
-                            {isBlocked && <WarningOutlined />}
-                            {st.label.toUpperCase()}
-                          </span>
+                      {/* Overall progress */}
+                      {allTasks.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <Text type="secondary" style={{ fontSize: 10 }}>Avance general</Text>
+                            <Text type="secondary" style={{ fontSize: 10 }}>{otProgress}%</Text>
+                          </div>
+                          <Progress
+                            percent={otProgress}
+                            size="small"
+                            showInfo={false}
+                            strokeColor={otProgress === 100 ? "#52c41a" : "#1890ff"}
+                            trailColor="#e2e8f0"
+                          />
                         </div>
+                      )}
+                    </td>
 
-                        {/* Progreso OT general */}
-                        {allWoTasks.length > 1 && (
-                          <div style={{ marginBottom: 10 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                              <Text type="secondary" style={{ fontSize: 10 }}>Avance OT</Text>
-                              <Text type="secondary" style={{ fontSize: 10 }}>{otProgress}%</Text>
+                    {/* Sector task cells */}
+                    {sectors.map((sector) => {
+                      const task = woTasks[sector.id];
+
+                      if (!task) {
+                        return (
+                          <td
+                            key={sector.id}
+                            style={{
+                              borderRight: "1px solid #e2e8f0",
+                              borderBottom: "1px solid #e2e8f0",
+                              background: isEven ? "#fafafa" : "#f5f5f5",
+                              textAlign: "center",
+                              padding: 12,
+                              verticalAlign: "middle",
+                            }}
+                          >
+                            <span style={{ color: "#d9d9d9", fontSize: 18 }}>—</span>
+                          </td>
+                        );
+                      }
+
+                      const st = TASK_STATUS[task.status] || TASK_STATUS.pendiente;
+                      const isBlocked = task.status === "bloqueada";
+                      const tLeft = task.estimated_finish ? timeLeft(task.estimated_finish) : null;
+                      const loading = actionLoading === task.id;
+
+                      return (
+                        <td
+                          key={sector.id}
+                          style={{
+                            borderRight: "1px solid #e2e8f0",
+                            borderBottom: "1px solid #e2e8f0",
+                            padding: "10px 12px",
+                            verticalAlign: "middle",
+                            background: isBlocked ? "#fff1f0" : st.bg,
+                          }}
+                        >
+                          {/* Status label */}
+                          <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
+                            <span style={{
+                              display: "inline-block",
+                              width: 7, height: 7,
+                              borderRadius: "50%",
+                              background: st.dot,
+                              flexShrink: 0,
+                            }} />
+                            <Text style={{ fontSize: 11, fontWeight: 600, color: st.color }}>
+                              {isBlocked && <WarningOutlined style={{ marginRight: 3 }} />}
+                              {st.label}
+                            </Text>
+                          </div>
+
+                          {/* Time estimate */}
+                          {tLeft && (
+                            <div style={{
+                              fontSize: 11,
+                              color: tLeft.urgent ? "#ff4d4f" : "#52c41a",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              marginBottom: 8,
+                            }}>
+                              <ClockCircleOutlined style={{ fontSize: 10 }} />
+                              {tLeft.text}
                             </div>
-                            <Progress
-                              percent={otProgress}
-                              size="small"
-                              showInfo={false}
-                              strokeColor={otProgress === 100 ? "#52c41a" : palette.header}
-                              trailColor="#f0f0f0"
-                            />
-                          </div>
-                        )}
+                          )}
 
-                        {/* Tiempo estimado */}
-                        {task.estimated_finish && tLeft && (
-                          <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 5,
-                            marginBottom: 10,
-                            color: tLeft.urgent ? "#ff4d4f" : "#52c41a",
-                            fontSize: 12,
-                            fontWeight: 500,
-                          }}>
-                            <ClockCircleOutlined />
-                            {tLeft.text}
-                          </div>
-                        )}
-
-                        {/* Footer: acciones + avatar */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
-                          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                            {task.status === "pendiente" && (
-                              <Button
-                                size="small"
-                                type="primary"
-                                icon={<PlayCircleOutlined />}
-                                loading={isLoading}
-                                onClick={() => changeStatus(task.id, "start")}
-                                style={{ fontSize: 11, height: 26, borderRadius: 6 }}
-                              >
-                                Iniciar
-                              </Button>
-                            )}
-                            {task.status === "en_proceso" && (
-                              <>
+                          {/* Action buttons */}
+                          {task.status !== "completada" && (
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              {(task.status === "pendiente" || task.status === "bloqueada") && (
                                 <Button
                                   size="small"
-                                  icon={<CheckCircleOutlined />}
-                                  loading={isLoading}
-                                  onClick={() => changeStatus(task.id, "complete")}
-                                  style={{ fontSize: 11, height: 26, borderRadius: 6, color: "#52c41a", borderColor: "#52c41a" }}
+                                  type="primary"
+                                  icon={<PlayCircleOutlined />}
+                                  loading={loading}
+                                  onClick={() => changeStatus(task.id, "start")}
+                                  style={{ fontSize: 11, height: 24, borderRadius: 5, paddingInline: 7 }}
                                 >
-                                  Listo
+                                  {task.status === "bloqueada" ? "Reanudar" : "Iniciar"}
                                 </Button>
-                                <Button
-                                  size="small"
-                                  danger
-                                  icon={<StopOutlined />}
-                                  loading={isLoading}
-                                  onClick={() => changeStatus(task.id, "block")}
-                                  style={{ fontSize: 11, height: 26, borderRadius: 6 }}
-                                >
-                                  Bloquear
-                                </Button>
-                              </>
-                            )}
-                            {task.status === "bloqueada" && (
-                              <Button
-                                size="small"
-                                type="primary"
-                                icon={<PlayCircleOutlined />}
-                                loading={isLoading}
-                                onClick={() => changeStatus(task.id, "start")}
-                                style={{ fontSize: 11, height: 26, borderRadius: 6 }}
-                              >
-                                Reanudar
-                              </Button>
-                            )}
-                            {task.status !== "completada" && (
+                              )}
+                              {task.status === "en_proceso" && (
+                                <>
+                                  <Button
+                                    size="small"
+                                    icon={<CheckCircleOutlined />}
+                                    loading={loading}
+                                    onClick={() => changeStatus(task.id, "complete")}
+                                    style={{ fontSize: 11, height: 24, borderRadius: 5, paddingInline: 7, color: "#52c41a", borderColor: "#52c41a" }}
+                                  >
+                                    Listo
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    danger
+                                    icon={<StopOutlined />}
+                                    loading={loading}
+                                    onClick={() => changeStatus(task.id, "block")}
+                                    style={{ fontSize: 11, height: 24, borderRadius: 5, paddingInline: 7 }}
+                                  >
+                                    Bloquear
+                                  </Button>
+                                </>
+                              )}
                               <Tooltip title="Establecer fecha estimada">
                                 <Button
                                   size="small"
@@ -390,45 +441,25 @@ export default function PipelinePage() {
                                     setEstimateModal({ open: true, taskId: task.id });
                                     setEstimateDate(task.estimated_finish ? dayjs(task.estimated_finish) : null);
                                   }}
-                                  style={{ fontSize: 11, height: 26, borderRadius: 6, width: 26, padding: 0 }}
+                                  style={{ fontSize: 11, height: 24, width: 24, borderRadius: 5, padding: 0 }}
                                 />
                               </Tooltip>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                            <Tooltip title="Ver OT completa">
-                              <Button
-                                size="small"
-                                type="text"
-                                icon={<EyeOutlined />}
-                                onClick={() => router.push(`/work-orders/${task.work_order}`)}
-                                style={{ width: 24, height: 24, padding: 0 }}
-                              />
-                            </Tooltip>
-                            <Tooltip title={task.assigned_to_name || "Sin asignar"}>
-                              <Avatar
-                                size={26}
-                                icon={<UserOutlined />}
-                                style={{ background: task.assigned_to_name ? palette.header : "#d9d9d9", cursor: "default", flexShrink: 0 }}
-                              />
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          );
-        })}
+                            </div>
+                          )}
 
-        {sectors.length === 0 && (
-          <div style={{ textAlign: "center", padding: 80, width: "100%" }}>
-            <Text type="secondary" style={{ fontSize: 16 }}>No hay sectores configurados.</Text>
-          </div>
-        )}
-      </div>
+                          {task.status === "completada" && (
+                            <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal fecha estimada */}
       <Modal

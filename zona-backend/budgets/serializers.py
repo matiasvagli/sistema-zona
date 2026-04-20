@@ -10,8 +10,9 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class BudgetSerializer(serializers.ModelSerializer):
-    client_name = serializers.ReadOnlyField(source='client.name')
-    items = BudgetItemSerializer(many=True, read_only=True)
+    client_name  = serializers.ReadOnlyField(source='client.name')
+    total_amount = serializers.ReadOnlyField()
+    items        = BudgetItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Budget

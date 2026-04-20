@@ -16,32 +16,23 @@ export const dataProvider: DataProvider = {
         });
     },
     update: async ({ resource, id, variables, meta }) => {
-        // Para update, simple-rest concatena url/id. 
-        // Si mandamos resource/ con slash, queda resource//id.
-        // Django acepta resource/id/ (con slash al final).
-        // Vamos a usar una ruta custom o simplemente no agregar el slash aquí 
-        // si el baseDataProvider ya lo maneja.
-        return baseDataProvider.update({
-            resource, // Volvemos al original para evitar el doble slash
-            id,
-            variables,
-            meta,
-        });
+        // Django requiere slash al final para peticiones PATCH/PUT
+        const { data } = await axiosInstance.patch(`${API_URL}/${resource}/${id}/`, variables);
+        return { data };
     },
     getOne: async ({ resource, id, meta }) => {
         return baseDataProvider.getOne({
             resource,
-            id,
+            id: `${id}/`,
             meta,
         });
     },
     deleteOne: async ({ resource, id, variables, meta }) => {
-        return baseDataProvider.deleteOne({
-            resource,
-            id,
-            variables,
-            meta,
+        // Django requiere slash al final para peticiones DELETE
+        const { data } = await axiosInstance.delete(`${API_URL}/${resource}/${id}/`, {
+            data: variables
         });
+        return { data };
     },
     getList: async ({ resource, pagination, filters, sorters, meta }) => {
         const response = await baseDataProvider.getList({

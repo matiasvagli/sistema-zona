@@ -1,0 +1,134 @@
+"use client";
+
+import React from "react";
+import { Typography, Row, Col, Input, Select, DatePicker, Tag, Button } from "antd";
+import { FireOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+
+const { Text } = Typography;
+const { Option } = Select;
+const { TextArea } = Input;
+
+interface WorkOrderInfoCardProps {
+  ot: any;
+  editMode: boolean;
+  setEditMode: (val: boolean) => void;
+  editFields: any;
+  setEditFields: (fields: any) => void;
+  statusCfg: { color: string; label: string };
+}
+
+export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
+  ot,
+  editMode,
+  setEditMode,
+  editFields,
+  setEditFields,
+  statusCfg,
+}) => {
+  return (
+    <div style={{ 
+      background: "#fff", 
+      borderRadius: 16, 
+      boxShadow: "0 4px 24px rgba(0,0,0,0.08)", 
+      padding: "24px 28px", 
+      marginBottom: 24 
+    }}>
+      {editMode ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Título</Text>
+            <Input
+              value={editFields.title}
+              onChange={(e) => setEditFields({ ...editFields, title: e.target.value })}
+              size="large"
+            />
+          </div>
+          <Row gutter={16}>
+            <Col xs={12}>
+              <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Estado</Text>
+              <Select
+                value={editFields.status}
+                onChange={(v) => setEditFields({ ...editFields, status: v })}
+                style={{ width: "100%" }}
+                size="large"
+              >
+                <Option value="pendiente">Pendiente</Option>
+                <Option value="en_proceso">En Proceso</Option>
+                <Option value="pausada">Pausada</Option>
+                <Option value="completada">Completada</Option>
+                <Option value="cancelada">Cancelada</Option>
+              </Select>
+            </Col>
+            <Col xs={12}>
+              <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Prioridad</Text>
+              <Select
+                value={editFields.priority}
+                onChange={(v) => setEditFields({ ...editFields, priority: v })}
+                style={{ width: "100%" }}
+                size="large"
+              >
+                <Option value="normal">Normal</Option>
+                <Option value="inmediata">
+                  <span style={{ color: "#ff4d4f" }}><FireOutlined style={{ marginRight: 6 }} />Inmediata</span>
+                </Option>
+              </Select>
+            </Col>
+          </Row>
+          <div>
+            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Vencimiento</Text>
+            <DatePicker
+              value={editFields.due_date}
+              onChange={(d) => setEditFields({ ...editFields, due_date: d })}
+              style={{ width: "100%" }}
+              format="DD/MM/YYYY"
+              size="large"
+            />
+          </div>
+          <div>
+            <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Notas</Text>
+            <TextArea
+              value={editFields.notes}
+              onChange={(e) => setEditFields({ ...editFields, notes: e.target.value })}
+              rows={3}
+            />
+          </div>
+          <Button onClick={() => setEditMode(false)}>Cancelar</Button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Estado</Text>
+            <div style={{ marginTop: 4 }}>
+              <Tag color={statusCfg.color} style={{ fontSize: 13, padding: "2px 10px" }}>{statusCfg.label}</Tag>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Prioridad</Text>
+            <div style={{ marginTop: 4 }}>
+              {ot.priority === "inmediata"
+                ? <Tag color="red" icon={<FireOutlined />} style={{ fontSize: 13, padding: "2px 10px" }}>Inmediata</Tag>
+                : <Tag style={{ fontSize: 13, padding: "2px 10px" }}>Normal</Tag>}
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Cliente</Text>
+            <Text strong style={{ display: "block", marginTop: 4 }}>{ot.client_name || "—"}</Text>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Vencimiento</Text>
+            <Text strong style={{ display: "block", marginTop: 4 }}>
+              {ot.due_date ? dayjs(ot.due_date).format("DD/MM/YYYY") : "—"}
+            </Text>
+          </div>
+          {ot.notes && (
+            <div style={{ width: "100%" }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Notas</Text>
+              <Text style={{ display: "block", marginTop: 4 }}>{ot.notes}</Text>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

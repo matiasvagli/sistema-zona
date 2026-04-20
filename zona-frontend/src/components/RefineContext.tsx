@@ -31,16 +31,22 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                         routerProvider={routerProvider}
                         accessControlProvider={{
                             can: async ({ resource, action }) => {
-                                const permissions = await authProvider.getPermissions();
+                                const user = await authProvider.getIdentity();
                                 
-                                // Si es staff, puede hacer todo
-                                if (permissions?.is_staff) {
+                                if (user?.is_superuser) {
+                                    return { can: true };
+                                }
+                                
+                                const rol = user?.rol || 'empleado';
+                                
+                                // CEO, admin y superusuarios (is_staff) tienen acceso a todo
+                                if (rol === 'ceo' || rol === 'admin' || user?.is_staff) {
                                     return { can: true };
                                 }
 
-                                // Si no es staff, solo puede ver 'pipeline'
-                                if (resource === "pipeline" || resource === "dashboard") {
-                                    return { can: true };
+                                // Empleados solo pueden ver pipeline y dashboard
+                                if (rol === 'empleado' && (resource === "pipeline" || resource === "dashboard")) {
+                                    return { can: true }; 
                                 }
 
                                 return {
@@ -76,6 +82,17 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                                 edit: "/work-orders/edit/:id",
                                 show: "/work-orders/:id",
                                 meta: { label: "Órdenes de Trabajo" },
+                            },
+                            {
+                                name: "budgets",
+                                list: "/budgets",
+                                create: "/budgets/create",
+                                show: "/budgets/:id",
+                                meta: { label: "Presupuestos" },
+                            },
+                            {
+                                name: "budget-items",
+                                meta: { hide: true },
                             },
                             {
                                 name: "pipeline",

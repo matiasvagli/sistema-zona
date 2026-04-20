@@ -40,7 +40,9 @@ class WorkOrder(models.Model):
     )
     due_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
-    photos = models.JSONField(default=list, blank=True, help_text="Lista de URLs a storage externo")
+    photos = models.JSONField(default=list, blank=True, help_text="Lista de URLs (Legacy)")
+    photos_before = models.JSONField(default=list, blank=True, help_text="Fotos de diseño / antes de producción (Legacy)")
+    photos_after  = models.JSONField(default=list, blank=True, help_text="Fotos de trabajo terminado (Legacy)")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -54,3 +56,34 @@ class WorkOrder(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+def work_order_photo_path(instance, filename):
+    # Genera una ruta: media/work_orders/{ot_id}/{category}/{filename}
+    return f"work_orders/{instance.work_order.id}/{instance.category}/{filename}"
+
+class WorkOrderPhoto(models.Model):
+    class Category(models.TextChoices):
+        BEFORE = 'before', 'Antes/Diseño'
+        AFTER = 'after', 'Después/Terminado'
+
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='work_order_photos')
+    image = models.ImageField(upload_to=work_order_photo_path)
+    category = models.CharField(max_length=10, choices=Category.choices, default=Category.BEFORE)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Foto {self.category} - {self.work_order.title}"
+
+
+class WorkOrderMaterial(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='materials')
+    product    = models.ForeignKey('inventory.Product', on_delete=models.PROTECT, related_name='ot_uses')
+    quantity   = models.DecimalField(max_digits=10, decimal_places=2)
+    notes      = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        unique_together = ('work_order', 'product')
+
+    def __str__(self):
+        return f"{self.work_order} — {self.product.name} x{self.quantity}"
