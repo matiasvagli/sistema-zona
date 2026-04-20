@@ -110,13 +110,13 @@ export const authProvider: AuthProvider = {
         return fetchIdentity();
     },
     onError: async (error) => {
-        if (error.status === 401 || error.status === 403) {
+        if (error.status === 401) { // Solo echa si el token expiró (401)
             return {
                 logout: true,
                 redirectTo: "/login",
             };
         }
-        return {};
+        return { error };
     },
 };
 

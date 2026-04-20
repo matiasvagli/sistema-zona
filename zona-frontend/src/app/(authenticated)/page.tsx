@@ -17,6 +17,7 @@ import {
   RocketOutlined,
   PlusOutlined,
   ToolOutlined,
+  CalendarOutlined,
   ThunderboltOutlined,
   FireOutlined,
   RightOutlined,
@@ -38,18 +39,18 @@ const today = new Date().toLocaleDateString("es-AR", {
 });
 
 const taskStatusConfig: Record<string, { color: string; label: string }> = {
-  pendiente:  { color: "default",    label: "Pendiente"  },
+  pendiente: { color: "default", label: "Pendiente" },
   en_proceso: { color: "processing", label: "En Proceso" },
-  completada: { color: "success",    label: "Completada" },
-  bloqueada:  { color: "error",      label: "Bloqueada"  },
+  completada: { color: "success", label: "Completada" },
+  bloqueada: { color: "error", label: "Bloqueada" },
 };
 
 const otStatusColor: Record<string, string> = {
-  pendiente:  "#8c8c8c",
+  pendiente: "#8c8c8c",
   en_proceso: "#1890ff",
-  pausada:    "#faad14",
+  pausada: "#faad14",
   completada: "#52c41a",
-  cancelada:  "#ff4d4f",
+  cancelada: "#ff4d4f",
 };
 
 function calcProgress(tasks: any[]): number {
@@ -66,24 +67,37 @@ export default function Dashboard() {
   const [chatUser, setChatUser] = useState<any>(null);
   const [unreadPerSender, setUnreadPerSender] = useState<Record<string, number>>({});
 
-  // Polling para mensajes no leídos por usuario
+  const [users, setUsers] = useState<any[]>([]);
+
+  // Polling para mensajes no leídos y lista de usuarios para el chat
   React.useEffect(() => {
-    const fetchUnread = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await axiosInstance.get("http://localhost:8000/api/v1/messages/unread-count/");
+        // 1. Mensajes no leídos
+        const { data: unreadData } = await axiosInstance.get("http://localhost:8000/api/v1/messages/unread-count/");
         const mapping: Record<string, number> = {};
-        if (data && data.per_sender) {
-          Object.keys(data.per_sender).forEach(key => {
-            mapping[String(key)] = data.per_sender[key];
+        if (unreadData && unreadData.per_sender) {
+          Object.keys(unreadData.per_sender).forEach(key => {
+            mapping[String(key)] = unreadData.per_sender[key];
           });
         }
         setUnreadPerSender(mapping);
-      } catch { /* ... */ }
+
+        // 2. Lista de usuarios para el chat (manual)
+        const { data: usersData } = await axiosInstance.get("http://localhost:8000/api/v1/users/");
+        setUsers(usersData.results || usersData);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+      }
     };
-    fetchUnread();
-    const id = setInterval(fetchUnread, 8000); // Sincronizado a 8s
+
+    fetchData();
+    const id = setInterval(fetchData, 8000);
     return () => clearInterval(id);
   }, []);
+
+  // Lógica de permisos por rol - Forzamos a boolean
+  const canViewBudgets = !!(user?.rol === "admin" || user?.rol === "ceo" || user?.is_staff);
 
   const { query: otQuery, result: otResult } = useList({
     resource: "work-orders",
@@ -92,27 +106,39 @@ export default function Dashboard() {
     pagination: { pageSize: 8 },
   });
 
-  const { result: usersResult }   = useList({ 
-    resource: "users", 
+  const { result: tasksResult } = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
+  
+  const { result: clientsResult } = useList({
+    resource: "clients",
     pagination: { pageSize: 50 },
-    queryOptions: { refetchInterval: 15000 } // Refresca cada 15 segundos
+    queryOptions: { 
+      enabled: canViewBudgets && !!user
+    }
   });
-  const { result: tasksResult }   = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
-  const { result: clientsResult } = useList({ resource: "clients",      pagination: { pageSize: 50  } });
+
   const { result: budgetsResult } = useList({
     resource: "budgets",
     sorters: [{ field: "created_at", order: "desc" }],
     pagination: { pageSize: 10 },
+    queryOptions: {
+      enabled: canViewBudgets && !!user
+    }
   });
 
-  const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 10 } });
+  const { result: productsResult } = useList({
+    resource: "products",
+    pagination: { pageSize: 10 },
+    queryOptions: { 
+      enabled: canViewBudgets && !!user
+    }
+  });
 
   if (userLoading) {
     return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
   }
 
   const workOrders: any[] = (otResult?.data || []) as any[];
-  const activeOTs  = workOrders.filter((o) => o.status !== "completada");
+  const activeOTs = workOrders.filter((o) => o.status !== "completada");
   const budgets: any[] = (budgetsResult?.data || []) as any[];
   const clients: any[] = (clientsResult?.data || []) as any[];
   const products: any[] = (productsResult?.data || []) as any[];
@@ -125,14 +151,14 @@ export default function Dashboard() {
   };
 
   const quickActions = [
-    { label: "Nueva OT",      icon: <PlusOutlined />,      color: "#1677ff", bg: "rgba(22,119,255,0.12)", path: "/work-orders/create" },
-    { label: "Presupuesto",   icon: <FileTextOutlined />,  color: "#9254de", bg: "rgba(146,84,222,0.12)", path: "/budgets/create" },
-    { label: "Nuevo Cliente", icon: <UserOutlined />,      color: "#fa8c16", bg: "rgba(250,140,22,0.12)", path: "/clients/create" },
-    { label: "Mantenimiento", icon: <ToolOutlined />,      color: "#52c41a", bg: "rgba(82,196,26,0.12)",  path: "/inventory"       },
+    ...(canViewBudgets ? [{ label: "Nueva OT", icon: <PlusOutlined />, color: "#1677ff", bg: "rgba(22,119,255,0.12)", path: "/work-orders/create" }] : []),
+    ...(canViewBudgets ? [{ label: "Presupuesto", icon: <FileTextOutlined />, color: "#9254de", bg: "rgba(146,84,222,0.12)", path: "/budgets/create" }] : []),
+    ...(canViewBudgets ? [{ label: "Nuevo Cliente", icon: <UserOutlined />, color: "#fa8c16", bg: "rgba(250,140,22,0.12)", path: "/clients/create" }] : []),
+    ...(canViewBudgets ? [{ label: "Mantenimiento", icon: <ToolOutlined />, color: "#52c41a", bg: "rgba(82,196,26,0.12)", path: "/inventory" }] : []),
   ];
 
   const statCards = [
-    {
+    ...(canViewBudgets ? [{
       title: "Clientes",
       value: clients.length,
       icon: <UserOutlined />,
@@ -140,7 +166,7 @@ export default function Dashboard() {
       bg: "#e6f4ff",
       path: "/clients",
       sub: `${clients.filter(c => c.is_active !== false).length} activos`,
-    },
+    }] : []),
     {
       title: "OTs Activas",
       value: activeOTs.length,
@@ -150,7 +176,7 @@ export default function Dashboard() {
       path: "/work-orders",
       sub: `${workOrders.filter(o => o.status === "en_proceso").length} en proceso`,
     },
-    {
+    ...(canViewBudgets ? [{
       title: "Presupuestos",
       value: budgets.length,
       icon: <FileTextOutlined />,
@@ -158,8 +184,8 @@ export default function Dashboard() {
       bg: "#fffbeb",
       path: "/budgets",
       sub: `${budgets.filter(b => b.status === "aprobado").length} aprobados`,
-    },
-    {
+    }] : []),
+    ...(canViewBudgets ? [{
       title: "Productos",
       value: products.length,
       icon: <ShoppingCartOutlined />,
@@ -167,7 +193,7 @@ export default function Dashboard() {
       bg: "#ecfdf5",
       path: "/products",
       sub: "en inventario",
-    },
+    }] : []),
   ];
 
   return (
@@ -186,15 +212,36 @@ export default function Dashboard() {
           <Row align="middle" wrap={false} gutter={16}>
             {/* Saludo */}
             <Col flex="auto">
-              <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                {greeting()}
-              </Text>
-              <Title level={2} style={{ color: "#fff", margin: "2px 0 0", fontSize: 26, fontWeight: 800 }}>
-                {user?.first_name || user?.username || "Admin"} 👋
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2, display: "block" }}>
-                {today.charAt(0).toUpperCase() + today.slice(1)}
-              </Text>
+              <div style={{ display: "flex", alignItems: "center", position: "relative", minHeight: 80 }}>
+                <div>
+                  <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {greeting()}
+                  </Text>
+                  <Title level={2} style={{ color: "#fff", margin: "2px 0 0", fontSize: 26, fontWeight: 800 }}>
+                    {user?.first_name || user?.username || "Admin"} 👋
+                  </Title>
+                  <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2, display: "block" }}>
+                    {today.charAt(0).toUpperCase() + today.slice(1)}
+                  </Text>
+                </div>
+
+                {/* Logo Flotante - No afecta el tamaño del recuadro */}
+                <img
+                  src="/logo-header.png"
+                  alt="Logo"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                    height: 150, // Ahora podés ponerle 100 o más y no se agranda el azul
+                    opacity: 0.7,
+                    objectFit: "contain",
+                    pointerEvents: "none"
+                  }}
+                  onError={(e) => e.currentTarget.style.display = 'none'}
+                />
+              </div>
             </Col>
 
             {/* Acciones rápidas inline */}
@@ -287,97 +334,148 @@ export default function Dashboard() {
                 <Title level={5} style={{ margin: 0 }}>Cola de Trabajos</Title>
                 <Tag style={{ margin: 0, fontSize: 11, borderRadius: 20 }}>{activeOTs.length} activas</Tag>
               </div>
-              <Button
-                type="primary"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={() => router.push("/work-orders/create")}
-                style={{ borderRadius: 8 }}
-              >
-                Nueva OT
-              </Button>
+              {canViewBudgets && (
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<PlusOutlined />}
+                  onClick={() => router.push("/work-orders/create")}
+                  style={{ borderRadius: 8 }}
+                >
+                  Nueva OT
+                </Button>
+              )}
             </div>
             <Divider style={{ margin: 0 }} />
 
-            {otQuery.isLoading ? (
-              <div style={{ textAlign: "center", padding: 40 }}><Spin /></div>
-            ) : workOrders.length === 0 ? (
-              <Empty description="No hay órdenes activas" style={{ padding: 40 }} />
-            ) : (
-              <div>
-                {workOrders.map((ot: any, idx: number) => {
-                  const tasks: any[] = ot.tasks || [];
-                  const progress = calcProgress(tasks);
-                  const statusColor = otStatusColor[ot.status] || "#8c8c8c";
-                  const isLast = idx === workOrders.length - 1;
-
-                  return (
-                    <div
-                      key={ot.id}
-                      onClick={() => setSelectedOT(ot)}
-                      style={{
-                        padding: "14px 24px",
-                        borderBottom: isLast ? "none" : "1px solid #f5f5f5",
-                        cursor: "pointer",
-                        transition: "background 0.1s",
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#fafafa")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                        <Text style={{ color: "#1677ff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>#{ot.id}</Text>
-                        <Text strong style={{ fontSize: 13, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {ot.title}
-                        </Text>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                          <Tag
-                            color={ot.status === "en_proceso" ? "processing" : ot.status === "completada" ? "success" : ot.status === "pausada" ? "warning" : "default"}
-                            style={{ fontSize: 11, margin: 0 }}
+            <div style={{ padding: "24px" }}>
+              {otQuery.isLoading ? (
+                <div style={{ textAlign: "center", padding: 40 }}><Spin /></div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <style>{`
+                    .ot-card {
+                      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                      border: 1px solid #f1f5f9;
+                    }
+                    .ot-card:hover {
+                      transform: translateY(-2px);
+                      box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05);
+                      border-color: #e2e8f0;
+                      background: #f8fafc !important;
+                    }
+                  `}</style>
+                  
+                  {workOrders.length === 0 ? (
+                    <Empty description="No hay órdenes de trabajo activas" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : (
+                    <>
+                      {workOrders.map((ot: any) => {
+                        const tasks = (tasksResult?.data || []).filter((t: any) => t.work_order === ot.id);
+                        const progress = calcProgress(tasks);
+                        
+                        return (
+                          <div 
+                            key={ot.id} 
+                            className="ot-card"
+                            onClick={() => router.push(`/work-orders/${ot.id}`)}
+                            style={{
+                              padding: "16px 20px",
+                              borderRadius: "16px",
+                              background: "#fff",
+                              cursor: "pointer"
+                            }}
                           >
-                            {ot.status === "en_proceso" ? "En proceso" : ot.status === "completada" ? "Completada" : ot.status === "pausada" ? "Pausada" : "Pendiente"}
-                          </Tag>
-                          {ot.priority === "inmediata" && (
-                            <Tag color="red" icon={<FireOutlined />} style={{ fontSize: 11, margin: 0 }}>Inmediata</Tag>
-                          )}
-                          {tasks.length > 0 && (
-                            <Tooltip title="Sectores">
-                              <span style={{ display: "flex", gap: 3 }}>
-                                {tasks.map((t: any) => (
-                                  <span key={t.id} style={{
-                                    width: 7, height: 7, borderRadius: "50%",
-                                    background: t.status === "completada" ? "#52c41a" : t.status === "en_proceso" ? "#1890ff" : t.status === "bloqueada" ? "#ff4d4f" : "#d9d9d9",
-                                    display: "inline-block",
-                                  }} />
-                                ))}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>#{ot.id}</span>
+                                  <Text strong style={{ fontSize: 14, color: "#1e293b" }}>
+                                    {ot.title}
+                                  </Text>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                                  <Tag color={otStatusColor[ot.status] || "default"} style={{ fontSize: 10, margin: 0, borderRadius: 6, border: "none", padding: "0 8px" }}>
+                                    {ot.status.replace("_", " ").toUpperCase()}
+                                  </Tag>
+                                  
+                                  {ot.priority === "inmediata" && (
+                                    <Tag color="volcano" icon={<ThunderboltOutlined />} style={{ borderRadius: 6, fontSize: 10, margin: 0, border: "none" }}>
+                                      INMEDIATA
+                                    </Tag>
+                                  )}
+
+                                  {ot.due_date && (
+                                    <Tag 
+                                      color={dayjs(ot.due_date).isBefore(dayjs(), 'day') || dayjs(ot.due_date).isSame(dayjs(), 'day') ? "error" : "blue"} 
+                                      icon={<CalendarOutlined />} 
+                                      style={{ borderRadius: 6, fontSize: 10, margin: 0, border: "none" }}
+                                    >
+                                      {dayjs(ot.due_date).format("DD/MM HH:mm")}
+                                    </Tag>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                {tasks.length > 0 && (
+                                  <div style={{ display: "flex", alignItems: "center" }}>
+                                    {tasks.slice(0, 3).map((t: any, i: number) => (
+                                      <Tooltip key={t.id} title={t.sector_name}>
+                                        <div style={{ 
+                                          width: 8, height: 8, borderRadius: "50%", 
+                                          background: t.status === "completada" ? "#10b981" : t.status === "en_proceso" ? "#3b82f6" : "#e2e8f0",
+                                          marginLeft: i > 0 ? -2 : 0,
+                                          border: "2px solid #fff",
+                                          boxSizing: "content-box"
+                                        }} />
+                                      </Tooltip>
+                                    ))}
+                                    {tasks.length > 3 && <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 4 }}>+{tasks.length - 3}</span>}
+                                  </div>
+                                )}
+                                <RightOutlined style={{ fontSize: 12, color: "#cbd5e1" }} />
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div style={{ flex: 1 }}>
+                                <Progress 
+                                  percent={progress} 
+                                  size="small" 
+                                  strokeColor={{
+                                    '0%': '#3b82f6',
+                                    '100%': '#10b981',
+                                  }}
+                                  trailColor="#f1f5f9"
+                                  showInfo={false}
+                                  style={{ marginBottom: 0 }}
+                                />
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? "#10b981" : "#64748b", minWidth: 35, textAlign: "right" }}>
+                                {progress}%
                               </span>
-                            </Tooltip>
-                          )}
-                        </div>
-                        <RightOutlined style={{ color: "#d9d9d9", fontSize: 10 }} />
+                            </div>
+                            
+                            {ot.client_name && (
+                              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                                <UserOutlined style={{ fontSize: 10, color: "#94a3b8" }} />
+                                <span style={{ fontSize: 11, color: "#64748b" }}>{ot.client_name}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div style={{ padding: "12px 0", textAlign: "center" }}>
+                        <Button type="link" size="small" onClick={() => router.push("/work-orders")}>
+                          Ver todas las órdenes <ArrowRightOutlined />
+                        </Button>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <Progress
-                          percent={progress}
-                          size="small"
-                          strokeColor={statusColor}
-                          showInfo={false}
-                          style={{ flex: 1, margin: 0 }}
-                        />
-                        <Text type="secondary" style={{ fontSize: 11, flexShrink: 0 }}>{progress}%</Text>
-                        {ot.client_name && (
-                          <Text type="secondary" style={{ fontSize: 11, flexShrink: 0 }}>· {ot.client_name}</Text>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                <div style={{ padding: "12px 24px", borderTop: "1px solid #f0f0f0" }}>
-                  <Button type="link" size="small" onClick={() => router.push("/work-orders")} style={{ padding: 0 }}>
-                    Ver todas las órdenes <ArrowRightOutlined />
-                  </Button>
+                    </>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
         </Col>
 
@@ -402,21 +500,20 @@ export default function Dashboard() {
                   )}
                 </div>
                 <Text type="secondary" style={{ fontSize: 11 }}>
-                  {(usersResult?.data || []).length} personas
+                  {users.length} personas
                 </Text>
               </div>
               <Divider style={{ margin: 0 }} />
-              {(usersResult?.data || []).length === 0 ? (
+              {users.length === 0 ? (
                 <Empty description="Sin empleados" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
               ) : (
                 <div>
-                {((usersResult?.data || []) as any[]).slice(0, 6).map((emp: any, idx: number, arr) => {
+                  {users.slice(0, 6).map((emp: any, idx: number, arr) => {
                     const initials = (emp.first_name?.[0] || emp.username?.[0] || "?").toUpperCase() +
-                                     (emp.last_name?.[0] || emp.username?.[1] || "?").toUpperCase();
+                      (emp.last_name?.[0] || emp.username?.[1] || "?").toUpperCase();
                     const isOnline = !!emp.is_online;
                     const isMe = emp.id === user?.id;
                     const isLast = idx === arr.length - 1;
-                    // Extraemos el conteo a una variable para evitar ambigüedad de tipos
                     const empUnread: number = (unreadPerSender[String(emp.id)] ?? unreadPerSender[emp.id] ?? 0) as number;
 
                     return (
@@ -426,16 +523,15 @@ export default function Dashboard() {
                         borderBottom: isLast ? "none" : "1px solid #f5f5f5",
                       }}>
                         <div style={{ position: "relative", flexShrink: 0 }}>
-                          <Badge 
-                            count={empUnread} 
-                            size="small" 
+                          <Badge
+                            count={empUnread}
+                            size="small"
                             offset={[-2, 2]}
                           >
                             <Avatar style={{ background: isOnline ? "#7c3aed" : "#e2e8f0", color: isOnline ? "#fff" : "#64748b", fontWeight: 700, fontSize: 12 }}>
                               {initials}
                             </Avatar>
                           </Badge>
-                          {/* Indicador online */}
                           <span style={{
                             position: "absolute", bottom: 0, right: 0,
                             width: 10, height: 10, borderRadius: "50%",
@@ -459,18 +555,18 @@ export default function Dashboard() {
                         </div>
                         {!isMe && (
                           <Tooltip title={empUnread > 0 ? `Tenés ${empUnread} mensajes sin leer de ${emp.first_name || emp.username}` : `Escribirle a ${emp.first_name || emp.username}`}>
-                              <Button
-                                size="middle"
-                                type="text"
-                                icon={<MessageOutlined />}
-                                shape="circle"
-                                style={{ 
-                                  color: empUnread > 0 ? "#ff4d4f" : "#7c3aed", 
-                                  background: empUnread > 0 ? "#fff1f0" : "transparent",
-                                  flexShrink: 0 
-                                }}
-                                onClick={() => setChatUser(emp)}
-                              />
+                            <Button
+                              size="middle"
+                              type="text"
+                              icon={<MessageOutlined />}
+                              shape="circle"
+                              style={{
+                                color: empUnread > 0 ? "#ff4d4f" : "#7c3aed",
+                                background: empUnread > 0 ? "#fff1f0" : "transparent",
+                                flexShrink: 0
+                              }}
+                              onClick={() => setChatUser(emp)}
+                            />
                           </Tooltip>
                         )}
                       </div>
@@ -481,97 +577,98 @@ export default function Dashboard() {
             </Card>
 
             {/* Presupuestos recientes */}
-            <Card
-              variant="borderless"
-              style={{ borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
-              styles={{ body: { padding: 0 } }}
-            >
-              <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "center", color: "#d97706", fontSize: 14 }}>
-                    <FileTextOutlined />
+            {canViewBudgets && (
+              <Card
+                variant="borderless"
+                style={{ borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
+                styles={{ body: { padding: 0 } }}
+              >
+                <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "center", color: "#d97706", fontSize: 14 }}>
+                      <FileTextOutlined />
+                    </div>
+                    <Title level={5} style={{ margin: 0 }}>Presupuestos</Title>
                   </div>
-                  <Title level={5} style={{ margin: 0 }}>Presupuestos</Title>
+                  <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => router.push("/budgets/create")}
+                    style={{ borderRadius: 8, fontSize: 12 }}
+                  >
+                    Nuevo
+                  </Button>
                 </div>
-                <Button
-                  size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => router.push("/budgets/create")}
-                  style={{ borderRadius: 8, fontSize: 12 }}
-                >
-                  Nuevo
-                </Button>
-              </div>
 
-              {/* Pill summary */}
-              <div style={{ display: "flex", gap: 6, padding: "0 20px 12px", flexWrap: "wrap" }}>
-                {[
-                  { label: "Borrador",  count: budgets.filter(b => b.status === "borrador").length,  color: "#8c8c8c", bg: "#f5f5f5"  },
-                  { label: "Aprobado",  count: budgets.filter(b => b.status === "aprobado").length,  color: "#059669", bg: "#ecfdf5"  },
-                  { label: "Facturado", count: budgets.filter(b => b.status === "facturado").length, color: "#1677ff", bg: "#e6f4ff"  },
-                  { label: "Rechazado", count: budgets.filter(b => b.status === "rechazado").length, color: "#dc2626", bg: "#fef2f2"  },
-                ].map(s => s.count > 0 ? (
-                  <span key={s.label} style={{
-                    padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                    color: s.color, background: s.bg,
-                  }}>
-                    {s.count} {s.label}
-                  </span>
-                ) : null)}
-              </div>
+                <div style={{ display: "flex", gap: 6, padding: "0 20px 12px", flexWrap: "wrap" }}>
+                  {[
+                    { label: "Borrador", count: budgets.filter(b => b.status === "borrador").length, color: "#8c8c8c", bg: "#f5f5f5" },
+                    { label: "Aprobado", count: budgets.filter(b => b.status === "aprobado").length, color: "#059669", bg: "#ecfdf5" },
+                    { label: "Facturado", count: budgets.filter(b => b.status === "facturado").length, color: "#1677ff", bg: "#e6f4ff" },
+                    { label: "Rechazado", count: budgets.filter(b => b.status === "rechazado").length, color: "#dc2626", bg: "#fef2f2" },
+                  ].map(s => s.count > 0 ? (
+                    <span key={s.label} style={{
+                      padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+                      color: s.color, background: s.bg,
+                    }}>
+                      {s.count} {s.label}
+                    </span>
+                  ) : null)}
+                </div>
 
-              <Divider style={{ margin: 0 }} />
-              {budgets.length === 0 ? (
-                <Empty description="Sin presupuestos" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
-              ) : (
-                <div>
-                  {budgets.slice(0, 5).map((b: any, idx: number, arr) => {
-                    const stMap: Record<string, { color: string; label: string }> = {
-                      borrador:  { color: "default", label: "Borrador"  },
-                      aprobado:  { color: "success", label: "Aprobado"  },
-                      rechazado: { color: "error",   label: "Rechazado" },
-                      facturado: { color: "blue",    label: "Facturado" },
-                    };
-                    const st = stMap[b.status] || stMap.borrador;
-                    const isLast = idx === arr.length - 1;
-                    return (
-                      <div
-                        key={b.id}
-                        onClick={() => router.push(`/budgets/${b.id}`)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          padding: "10px 20px",
-                          borderBottom: isLast ? "none" : "1px solid #f5f5f5",
-                          cursor: "pointer",
-                          transition: "background 0.1s",
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#fafafa")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Text type="secondary" style={{ fontSize: 10 }}>PRE-{String(b.id).padStart(4, "0")}</Text>
-                            <Text strong style={{ fontSize: 12 }} ellipsis>{b.client_name}</Text>
+                <Divider style={{ margin: 0 }} />
+                {budgets.length === 0 ? (
+                  <Empty description="Sin presupuestos" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
+                ) : (
+                  <div>
+                    {budgets.slice(0, 5).map((b: any, idx: number, arr) => {
+                      const stMap: Record<string, { color: string; label: string }> = {
+                        borrador: { color: "default", label: "Borrador" },
+                        aprobado: { color: "success", label: "Aprobado" },
+                        rechazado: { color: "error", label: "Rechazado" },
+                        facturado: { color: "blue", label: "Facturado" },
+                      };
+                      const st = stMap[b.status] || stMap.borrador;
+                      const isLast = idx === arr.length - 1;
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => router.push(`/budgets/${b.id}`)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "10px 20px",
+                            borderBottom: isLast ? "none" : "1px solid #f5f5f5",
+                            cursor: "pointer",
+                            transition: "background 0.1s",
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "#fafafa")}
+                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Text type="secondary" style={{ fontSize: 10 }}>PRE-{String(b.id).padStart(4, "0")}</Text>
+                              <Text strong style={{ fontSize: 12 }} ellipsis>{b.client_name}</Text>
+                            </div>
                           </div>
+                          <Tag color={st.color as any} style={{ fontSize: 10, margin: 0 }}>{st.label}</Tag>
+                          {b.total_amount != null && (
+                            <Text strong style={{ fontSize: 12, color: "#059669", flexShrink: 0 }}>
+                              ${Number(b.total_amount).toLocaleString("es-AR")}
+                            </Text>
+                          )}
+                          <RightOutlined style={{ color: "#d9d9d9", fontSize: 10 }} />
                         </div>
-                        <Tag color={st.color as any} style={{ fontSize: 10, margin: 0 }}>{st.label}</Tag>
-                        {b.total_amount != null && (
-                          <Text strong style={{ fontSize: 12, color: "#059669", flexShrink: 0 }}>
-                            ${Number(b.total_amount).toLocaleString("es-AR")}
-                          </Text>
-                        )}
-                        <RightOutlined style={{ color: "#d9d9d9", fontSize: 10 }} />
-                      </div>
-                    );
-                  })}
-                  <div style={{ padding: "10px 20px", borderTop: "1px solid #f0f0f0" }}>
-                    <Button type="link" size="small" onClick={() => router.push("/budgets")} style={{ padding: 0, fontSize: 12 }}>
-                      Ver todos <ArrowRightOutlined />
-                    </Button>
+                      );
+                    })}
+                    <div style={{ padding: "10px 20px", borderTop: "1px solid #f0f0f0" }}>
+                      <Button type="link" size="small" onClick={() => router.push("/budgets")} style={{ padding: 0, fontSize: 12 }}>
+                        Ver todos <ArrowRightOutlined />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </Card>
+                )}
+              </Card>
+            )}
 
           </div>
         </Col>

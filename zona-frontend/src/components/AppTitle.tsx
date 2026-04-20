@@ -3,34 +3,39 @@
 import { Typography } from "antd";
 
 export const AppTitle = ({ collapsed }: { collapsed: boolean }) => (
-    <div style={{ 
-        padding: collapsed ? "16px 0" : "16px",
+    <div style={{
+        padding: collapsed ? "16px 0" : "20px 0",
         display: "flex",
         alignItems: "center",
-        gap: "12px",
         justifyContent: collapsed ? "center" : "flex-start"
     }}>
-        {/* AQUÍ PODRÁS PONER TU LOGO MÁS ADELANTE */}
-        {/* Ejemplo: <img src="/logo.png" alt="Logo" style={{ width: '32px' }} /> */}
-        <div style={{ 
-            width: "32px", 
-            height: "32px", 
-            background: "linear-gradient(135deg, #1890ff 0%, #001529 100%)", 
-            borderRadius: "8px",
+        <div style={{
+            width: "100%",
+            height: collapsed ? "32px" : "65px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontWeight: "bold",
-            fontSize: "18px",
-            boxShadow: "0 4px 10px rgba(24, 144, 255, 0.3)"
+            justifyContent: collapsed ? "center" : "flex-start",
+            overflow: "hidden"
         }}>
-            Z
+            <img
+                src="/logo1.png"
+                alt="Zona Urbana"
+                style={{
+                    width: "auto",
+                    height: "48%",
+                    objectFit: "contain",
+                    marginLeft: collapsed ? "0" : "-8px",
+                    marginTop: collapsed ? "0" : "25px",
+                    transition: "all 0.3s"
+                }}
+                onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                        parent.innerHTML = '<span style="color: #001529; font-weight: 900; font-size: 16px;">ZONA URBANA</span>';
+                    }
+                }}
+            />
         </div>
-        {!collapsed && (
-            <Typography.Title level={4} style={{ margin: 0, color: "#001529", fontSize: "18px", fontWeight: 700 }}>
-                Zona Urbana
-            </Typography.Title>
-        )}
     </div>
 );

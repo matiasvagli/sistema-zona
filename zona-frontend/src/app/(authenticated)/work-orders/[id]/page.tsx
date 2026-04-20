@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useList } from "@refinedev/core";
+import { useList, useGetIdentity } from "@refinedev/core";
 import {
   Typography, Card, Spin, notification, Modal, Row, Col, Select, Input, InputNumber, Button, DatePicker
 } from "antd";
@@ -39,6 +39,7 @@ const taskStatusConfig: Record<string, { color: string; label: string }> = {
 
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
+  const { data: identity } = useGetIdentity<any>();
   const [ot, setOt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -222,7 +223,7 @@ export default function WorkOrderDetail() {
   return (
     <div style={{ padding: "24px", background: "#f0f2f5", minHeight: "100%" }}>
       
-      <WorkOrderHeader 
+      <WorkOrderHeader
         ot={ot}
         editMode={editMode}
         setEditMode={setEditMode}
@@ -230,6 +231,7 @@ export default function WorkOrderDetail() {
         setEditFields={setEditFields}
         saveHeader={saveHeader}
         saving={saving}
+        canEdit={identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin'}
       />
 
       <div style={{ padding: "0 12px", marginTop: -60 }}>
@@ -245,7 +247,7 @@ export default function WorkOrderDetail() {
               statusCfg={statusCfg}
             />
 
-            <WorkOrderSectors 
+            <WorkOrderSectors
               tasks={tasks}
               availableSectors={availableSectors}
               setAddSectorOpen={setAddSectorOpen}
@@ -254,6 +256,13 @@ export default function WorkOrderDetail() {
               setEstimateModal={setEstimateModal}
               setEstimateDate={setEstimateDate}
               taskStatusConfig={taskStatusConfig}
+              canEditSector={(sectorId: number) => {
+                const isAdminOrCeo = identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin';
+                if (isAdminOrCeo) return true;
+                const memberships: any[] = identity?.sector_memberships || [];
+                if (memberships.length > 0) return memberships.some((m: any) => m.sector === sectorId && m.puede_editar);
+                return identity?.sector === sectorId;
+              }}
             />
 
             <WorkOrderMaterials 

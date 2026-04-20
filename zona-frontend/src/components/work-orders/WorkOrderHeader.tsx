@@ -20,6 +20,7 @@ interface WorkOrderHeaderProps {
   setEditFields: (fields: any) => void;
   saveHeader: () => void;
   saving: boolean;
+  canEdit?: boolean;
 }
 
 export const WorkOrderHeader: React.FC<WorkOrderHeaderProps> = ({
@@ -30,6 +31,7 @@ export const WorkOrderHeader: React.FC<WorkOrderHeaderProps> = ({
   setEditFields,
   saveHeader,
   saving,
+  canEdit = false,
 }) => {
   const router = useRouter();
 
@@ -83,25 +85,25 @@ export const WorkOrderHeader: React.FC<WorkOrderHeaderProps> = ({
             Gestioná el progreso de los sectores y materiales de esta orden
           </Text>
         </div>
-        {!editMode ? (
-          <Button 
-            icon={<EditOutlined />} 
+        {canEdit && (!editMode ? (
+          <Button
+            icon={<EditOutlined />}
             onClick={() => setEditMode(true)}
             style={{ borderRadius: 10, fontWeight: 600 }}
           >
             Editar OT
           </Button>
         ) : (
-          <Button 
-            type="primary" 
-            icon={<SaveOutlined />} 
-            loading={saving} 
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
             onClick={saveHeader}
             style={{ borderRadius: 10, fontWeight: 600, background: "#52c41a", borderColor: "#52c41a" }}
           >
             Guardar Cambios
           </Button>
-        )}
+        ))}
       </div>
     </div>
   );

@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { useList, useGetIdentity } from "@refinedev/core";
 import {
   Tag, Typography, Spin, Tooltip, Button, Progress,
-  notification, Modal, DatePicker,
+  notification, Modal, DatePicker, Input, InputNumber, Select,
 } from "antd";
 import {
   ClockCircleOutlined, WarningOutlined, FireOutlined,
   PlayCircleOutlined, CheckCircleOutlined, StopOutlined, PlusOutlined,
-  ReloadOutlined, EyeOutlined,
+  ReloadOutlined, EyeOutlined, ShoppingCartOutlined, EditOutlined, MessageOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
+
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/es";
@@ -21,6 +22,7 @@ dayjs.extend(relativeTime);
 dayjs.locale("es");
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const API = "http://localhost:8000/api/v1";
 
@@ -59,10 +61,37 @@ function timeLeft(estimated: string): { text: string; urgent: boolean } {
 export default function PipelinePage() {
   const router = useRouter();
   const { data: identity } = useGetIdentity<any>();
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [estimateModal, setEstimateModal] = useState<{ open: boolean; taskId: number | null }>({ open: false, taskId: null });
+  const [refreshKey, setRefreshKey] = useState(0);  const [estimateModal, setEstimateModal] = useState<{ open: boolean; taskId: number | null }>({ open: false, taskId: null });
   const [estimateDate, setEstimateDate] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+
+  // Estados para notas de tarea
+  const [notesModal, setNotesModal] = useState<{ open: boolean; taskId: number | null; current: string }>({ open: false, taskId: null, current: "" });
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [viewNote, setViewNote] = useState<{ open: boolean; text: string; sector: string }>({ open: false, text: "", sector: "" });
+
+  const saveNotes = async () => {
+    if (!notesModal.taskId) return;
+    setSavingNotes(true);
+    try {
+      await axiosInstance.patch(`${API}/sector-tasks/${notesModal.taskId}/`, { notes: notesModal.current });
+      notification.success({ message: "Nota guardada" });
+      setNotesModal({ open: false, taskId: null, current: "" });
+      refresh();
+    } catch {
+      notification.error({ message: "No se pudo guardar la nota" });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  // Estados para materiales
+  const [matModal, setMatModal] = useState(false);
+  const [matProduct, setMatProduct] = useState<number | null>(null);
+  const [matQty, setMatQty] = useState<number>(1);
+  const [matNotes, setMatNotes] = useState("");
+  const [matOTId, setMatOTId] = useState<number | null>(null);
+  const [savingMat, setSavingMat] = useState(false);
 
   const { query: sectorsQuery, result: sectorsResult } = useList({
     resource: "sectors",
@@ -83,6 +112,10 @@ export default function PipelinePage() {
     queryOptions: { queryKey: ["work-orders-pipeline", refreshKey] } as any,
   });
 
+  // Inventario para el modal de materiales
+  const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 200 } });
+  const allProducts: any[] = productsResult?.data || [];
+
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const changeStatus = async (taskId: number, action: "start" | "complete" | "block") => {
@@ -95,6 +128,20 @@ export default function PipelinePage() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const addMaterial = async () => {
+    if (!matProduct || !matQty || !matOTId) return;
+    setSavingMat(true);
+    try {
+      await axiosInstance.post(`${API}/work-order-materials/`, {
+        work_order: matOTId, product: matProduct, quantity: matQty, notes: matNotes,
+      });
+      notification.success({ message: "Material asignado correctamente" });
+      setMatModal(false); setMatProduct(null); setMatQty(1); setMatNotes("");
+    } catch (e: any) {
+      notification.error({ message: e?.response?.data?.detail || "Error al asignar material" });
+    } finally { setSavingMat(false); }
   };
 
   const saveEstimate = async () => {
@@ -114,6 +161,7 @@ export default function PipelinePage() {
 
   const isLoading = sectorsQuery.isLoading || tasksQuery.isLoading || woQuery.isLoading;
 
+
   if (isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "70vh", gap: 16 }}>
@@ -127,10 +175,23 @@ export default function PipelinePage() {
   const tasks: any[] = tasksResult?.data || [];
   const workOrders: any[] = woResult?.data || [];
 
-  // Filter sectors by user's sector if not staff
-  if (identity && !identity.is_staff && identity.sector) {
-    sectors = sectors.filter((s: any) => s.id === identity.sector);
-  }
+  // Filter sectors: admin/CEO/staff ven todo; empleados ven los sectores donde tienen puede_ver=true
+  // Todos ven todos los sectores — solo se restringe quién puede actuar sobre cada uno
+  const isAdminOrCeo = identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin';
+
+  const editableSectorIds: Set<number> | null = isAdminOrCeo
+    ? null
+    : (() => {
+        const memberships: any[] = identity?.sector_memberships || [];
+        if (memberships.length > 0) {
+          return new Set(memberships.filter((m: any) => m.puede_editar).map((m: any) => m.sector));
+        }
+        // Fallback sin membresías: solo puede editar su sector primario
+        return identity?.sector ? new Set([identity.sector]) : new Set<number>();
+      })();
+
+  const canEditSector = (sectorId: number) =>
+    editableSectorIds === null || editableSectorIds.has(sectorId);
 
   // Build task map: taskMap[workOrderId][sectorId] = task
   const taskMap: Record<number, Record<number, any>> = {};
@@ -176,9 +237,11 @@ export default function PipelinePage() {
             {completed} completada{completed > 1 ? "s" : ""}
           </Tag>
           <Button icon={<ReloadOutlined />} onClick={refresh} />
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/work-orders/create")}>
-            Nueva OT
-          </Button>
+          {(identity?.is_staff || identity?.rol === 'admin' || identity?.rol === 'ceo') && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => router.push("/work-orders/create")}>
+              Nueva OT
+            </Button>
+          )}
         </div>
       </div>
 
@@ -396,7 +459,7 @@ export default function PipelinePage() {
                           )}
 
                           {/* Action buttons */}
-                          {task.status !== "completada" && (
+                          {task.status !== "completada" && canEditSector(sector.id) && (
                             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                               {(task.status === "pendiente" || task.status === "bloqueada") && (
                                 <Button
@@ -433,6 +496,17 @@ export default function PipelinePage() {
                                   </Button>
                                 </>
                               )}
+                              <Tooltip title="Asignar Materiales">
+                                <Button
+                                  size="small"
+                                  icon={<ShoppingCartOutlined />}
+                                  onClick={() => {
+                                    setMatOTId(wo.id);
+                                    setMatModal(true);
+                                  }}
+                                  style={{ fontSize: 11, height: 24, width: 24, borderRadius: 5, padding: 0, background: "#fa8c16", color: "#fff", border: "none" }}
+                                />
+                              </Tooltip>
                               <Tooltip title="Establecer fecha estimada">
                                 <Button
                                   size="small"
@@ -450,6 +524,32 @@ export default function PipelinePage() {
                           {task.status === "completada" && (
                             <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
                           )}
+
+                          {/* Nota de sector — visible para todos, editable solo si puede editar */}
+                          <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                            {task.notes ? (
+                              <div
+                                onClick={() => setViewNote({ open: true, text: task.notes, sector: sector.name })}
+                                style={{ fontSize: 10, color: "#595959", background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 4, padding: "2px 6px", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
+                              >
+                                <MessageOutlined style={{ marginRight: 3 }} />
+                                {task.notes.length > 15 ? task.notes.slice(0, 15) + "…" : task.notes}
+                              </div>
+                            ) : canEditSector(sector.id) ? (
+                              <span style={{ fontSize: 10, color: "#bfbfbf" }}>Sin nota</span>
+                            ) : null}
+                            {canEditSector(sector.id) && (
+                              <Tooltip title="Editar nota">
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<EditOutlined />}
+                                  onClick={() => setNotesModal({ open: true, taskId: task.id, current: task.notes || "" })}
+                                  style={{ fontSize: 10, height: 18, width: 18, padding: 0, color: "#8c8c8c", flexShrink: 0 }}
+                                />
+                              </Tooltip>
+                            )}
+                          </div>
                         </td>
                       );
                     })}
@@ -460,6 +560,35 @@ export default function PipelinePage() {
           </table>
         </div>
       )}
+
+      {/* Modal ver nota completa */}
+      <Modal
+        title={`Nota — ${viewNote.sector}`}
+        open={viewNote.open}
+        onCancel={() => setViewNote({ open: false, text: "", sector: "" })}
+        footer={null}
+      >
+        <p style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{viewNote.text}</p>
+      </Modal>
+
+      {/* Modal nota de sector */}
+      <Modal
+        title="Nota del sector"
+        open={notesModal.open}
+        onCancel={() => setNotesModal({ open: false, taskId: null, current: "" })}
+        onOk={saveNotes}
+        confirmLoading={savingNotes}
+        okText="Guardar"
+      >
+        <Input.TextArea
+          rows={3}
+          placeholder="Ej: Faltan 2 piezas, usar plantilla B, cuidado con el borde..."
+          value={notesModal.current}
+          onChange={(e) => setNotesModal((prev) => ({ ...prev, current: e.target.value }))}
+          maxLength={500}
+          showCount
+        />
+      </Modal>
 
       {/* Modal fecha estimada */}
       <Modal
@@ -481,6 +610,44 @@ export default function PipelinePage() {
           format="DD/MM/YYYY HH:mm"
           size="large"
         />
+      </Modal>
+
+      {/* Modal Asignar Materiales */}
+      <Modal
+        title={`Asignar Materiales a OT #${matOTId}`}
+        open={matModal}
+        onOk={addMaterial}
+        onCancel={() => setMatModal(false)}
+        confirmLoading={savingMat}
+        okText="Asignar"
+        cancelText="Cancelar"
+        width={500}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "10px 0" }}>
+          <div>
+            <p style={{ marginBottom: 6 }}>Producto:</p>
+            <Select
+              showSearch
+              placeholder="Buscar producto..."
+              style={{ width: "100%" }}
+              optionFilterProp="children"
+              onChange={setMatProduct}
+              value={matProduct}
+            >
+              {allProducts.map((p) => (
+                <Option key={p.id} value={p.id}>{p.name} ({p.unit}) - Stock: {p.stock}</Option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <p style={{ marginBottom: 6 }}>Cantidad:</p>
+            <InputNumber min={0.01} style={{ width: "100%" }} value={matQty} onChange={(v) => setMatQty(v || 1)} />
+          </div>
+          <div>
+            <p style={{ marginBottom: 6 }}>Notas / Medidas:</p>
+            <Input placeholder="Ej: 2.5 mts" value={matNotes} onChange={(e) => setMatNotes(e.target.value)} />
+          </div>
+        </div>
       </Modal>
     </div>
   );

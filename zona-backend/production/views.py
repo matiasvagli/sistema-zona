@@ -27,7 +27,47 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
         task = self.get_object()
         task.status = SectorTask.Status.COMPLETADA
         task.save()
+        self._notificar_sectores_pendientes(task, request.user)
         return Response(self.get_serializer(task).data)
+
+    def _notificar_sectores_pendientes(self, task_completada, actor):
+        """Envía mensaje directo a usuarios de los sectores que aún no terminaron en esta OT."""
+        from chat.models import Message
+        from accounts.models import SectorMembership
+
+        otras_tasks = SectorTask.objects.filter(
+            work_order=task_completada.work_order
+        ).exclude(
+            id=task_completada.id
+        ).exclude(
+            status=SectorTask.Status.COMPLETADA
+        ).select_related('sector')
+
+        if not otras_tasks.exists():
+            return
+
+        ot_titulo = task_completada.work_order.title
+        sector_nombre = task_completada.sector.name
+        nota = f' — "{task_completada.notes}"' if task_completada.notes else ""
+        contenido = (
+            f"✅ {sector_nombre} completó su tarea en OT: {ot_titulo}{nota}. "
+            f"Sectores pendientes: {', '.join(t.sector.name for t in otras_tasks)}"
+        )
+
+        # Destinatarios: usuarios con puede_ver en los sectores pendientes
+        sectores_pendientes_ids = otras_tasks.values_list('sector_id', flat=True)
+        usuarios = SectorMembership.objects.filter(
+            sector_id__in=sectores_pendientes_ids,
+            puede_ver=True
+        ).exclude(
+            usuario=actor
+        ).values_list('usuario', flat=True).distinct()
+
+        mensajes = [
+            Message(sender=actor, recipient_id=uid, content=contenido)
+            for uid in usuarios
+        ]
+        Message.objects.bulk_create(mensajes)
 
     @action(detail=True, methods=['post'])
     def block(self, request, pk=None):

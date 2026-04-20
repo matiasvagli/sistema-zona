@@ -18,7 +18,7 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
         <RefineKbarProvider>
             <ConfigProvider
                 theme={{
-                    algorithm: theme.defaultAlgorithm, // Cambiamos a default para evitar confusión de pantalla negra
+                    algorithm: theme.defaultAlgorithm,
                     token: {
                         colorPrimary: "#1677ff",
                     },
@@ -32,21 +32,22 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                         accessControlProvider={{
                             can: async ({ resource, action }) => {
                                 const user = await authProvider.getIdentity();
-                                
-                                if (user?.is_superuser) {
-                                    return { can: true };
-                                }
-                                
                                 const rol = user?.rol || 'empleado';
-                                
-                                // CEO, admin y superusuarios (is_staff) tienen acceso a todo
-                                if (rol === 'ceo' || rol === 'admin' || user?.is_staff) {
+                                const isAdmin = rol === 'ceo' || rol === 'admin' || user?.is_staff;
+
+                                if (user?.is_superuser || isAdmin) {
                                     return { can: true };
                                 }
-
-                                // Empleados solo pueden ver pipeline y dashboard
-                                if (rol === 'empleado' && (resource === "pipeline" || resource === "dashboard")) {
-                                    return { can: true }; 
+                                
+                                // Empleados: SOLO Dashboard, OTs, Pipeline, Sectores y Tareas (solo lectura)
+                                if (rol === 'empleado') {
+                                    if (["create", "edit", "delete"].includes(action)) {
+                                        return { can: false };
+                                    }
+                                    const allowedForEmpleado = ["dashboard", "work-orders", "pipeline", "sectors", "sector-tasks"];
+                                    if (allowedForEmpleado.includes(resource || "")) {
+                                        return { can: true };
+                                    }
                                 }
 
                                 return {

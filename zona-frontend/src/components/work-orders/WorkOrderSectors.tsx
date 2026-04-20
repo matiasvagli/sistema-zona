@@ -1,11 +1,14 @@
 "use client";
 
-import React from "react";
-import { Typography, Button, Empty, Tag, Tooltip, Progress } from "antd";
-import { 
-  ToolOutlined, PlusOutlined, PlayCircleOutlined, 
-  CheckCircleOutlined, StopOutlined, ClockCircleOutlined, 
-  DeleteOutlined 
+import React, { useState } from "react";
+import { Typography, Button, Empty, Tag, Tooltip, Modal, Input, notification } from "antd";
+import { axiosInstance } from "@/utils/axios-instance";
+
+const API = "http://localhost:8000/api/v1";
+import {
+  ToolOutlined, PlusOutlined, PlayCircleOutlined,
+  CheckCircleOutlined, StopOutlined, ClockCircleOutlined,
+  DeleteOutlined, EditOutlined, MessageOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 
@@ -20,6 +23,7 @@ interface WorkOrderSectorsProps {
   setEstimateModal: (val: { open: boolean; taskId: number | null }) => void;
   setEstimateDate: (date: any) => void;
   taskStatusConfig: Record<string, { color: string; label: string }>;
+  canEditSector: (sectorId: number) => boolean;
 }
 
 export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
@@ -31,7 +35,25 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
   setEstimateModal,
   setEstimateDate,
   taskStatusConfig,
+  canEditSector,
 }) => {
+  const [notesModal, setNotesModal] = useState<{ open: boolean; taskId: number | null; current: string }>({ open: false, taskId: null, current: "" });
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  const saveNotes = async () => {
+    if (!notesModal.taskId) return;
+    setSavingNotes(true);
+    try {
+      await axiosInstance.patch(`${API}/sector-tasks/${notesModal.taskId}/`, { notes: notesModal.current });
+      notification.success({ message: "Nota guardada" });
+      setNotesModal({ open: false, taskId: null, current: "" });
+    } catch {
+      notification.error({ message: "No se pudo guardar la nota" });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   return (
     <div style={{ 
       background: "#fff", 
@@ -99,7 +121,7 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                     </div>
 
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {task.status === "pendiente" && (
+                      {task.status === "pendiente" && canEditSector(task.sector) && (
                         <Button
                           size="small"
                           type="primary"
@@ -110,7 +132,7 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                           Iniciar
                         </Button>
                       )}
-                      {task.status === "en_proceso" && (
+                      {task.status === "en_proceso" && canEditSector(task.sector) && (
                         <>
                           <Button
                             size="small"
@@ -131,7 +153,7 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                           </Button>
                         </>
                       )}
-                      {task.status === "bloqueada" && (
+                      {task.status === "bloqueada" && canEditSector(task.sector) && (
                         <Button
                           size="small"
                           type="primary"
@@ -142,7 +164,7 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                           Reanudar
                         </Button>
                       )}
-                      {(task.status === "en_proceso" || task.status === "pendiente") && (
+                      {(task.status === "en_proceso" || task.status === "pendiente") && canEditSector(task.sector) && (
                         <Tooltip title="Establecer fecha estimada de fin">
                           <Button
                             size="small"
@@ -155,15 +177,17 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                           />
                         </Tooltip>
                       )}
-                      <Tooltip title="Quitar sector">
-                        <Button
-                          size="small"
-                          danger
-                          type="text"
-                          icon={<DeleteOutlined />}
-                          onClick={() => removeSector(task.id)}
-                        />
-                      </Tooltip>
+                      {canEditSector(task.sector) && (
+                        <Tooltip title="Quitar sector">
+                          <Button
+                            size="small"
+                            danger
+                            type="text"
+                            icon={<DeleteOutlined />}
+                            onClick={() => removeSector(task.id)}
+                          />
+                        </Tooltip>
+                      )}
                     </div>
                   </div>
 
@@ -188,12 +212,53 @@ export const WorkOrderSectors: React.FC<WorkOrderSectorsProps> = ({
                       </Text>
                     )}
                   </div>
+
+                  {/* Nota del sector */}
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                    {task.notes ? (
+                      <div style={{ flex: 1, fontSize: 13, color: "#595959", background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 6, padding: "6px 10px" }}>
+                        <MessageOutlined style={{ marginRight: 6, color: "#faad14" }} />
+                        {task.notes}
+                      </div>
+                    ) : (
+                      <Text type="secondary" style={{ fontSize: 12 }}>Sin nota</Text>
+                    )}
+                    {canEditSector(task.sector) && (
+                      <Tooltip title={task.notes ? "Editar nota" : "Agregar nota"}>
+                        <Button
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={() => setNotesModal({ open: true, taskId: task.id, current: task.notes || "" })}
+                          style={{ flexShrink: 0 }}
+                        />
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      <Modal
+        title="Nota del sector"
+        open={notesModal.open}
+        onCancel={() => setNotesModal({ open: false, taskId: null, current: "" })}
+        onOk={saveNotes}
+        confirmLoading={savingNotes}
+        okText="Guardar"
+      >
+        <Input.TextArea
+          rows={3}
+          placeholder="Ej: Faltan 2 piezas, usar plantilla B, cuidado con el borde..."
+          value={notesModal.current}
+          onChange={(e) => setNotesModal((prev) => ({ ...prev, current: e.target.value }))}
+          maxLength={500}
+          showCount
+          autoFocus
+        />
+      </Modal>
     </div>
   );
 };
