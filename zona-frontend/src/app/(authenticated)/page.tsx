@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useGetIdentity, useList } from "@refinedev/core";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
@@ -8,7 +8,7 @@ import { ChatFloatingButton } from "@/components/ChatDrawer";
 import { axiosInstance } from "@/utils/axios-instance";
 import {
   Typography, Row, Col, Card, Button, List, Avatar, Tag,
-  Divider, Progress, Spin, Drawer, Tooltip, Empty, Space, Badge,
+  Divider, Progress, Spin, Drawer, Tooltip, Empty, Space, Badge, Select,
 } from "antd";
 import {
   UserOutlined,
@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [selectedOT, setSelectedOT] = useState<any>(null);
   const [chatUser, setChatUser] = useState<any>(null);
   const [unreadPerSender, setUnreadPerSender] = useState<Record<string, number>>({});
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   const [users, setUsers] = useState<any[]>([]);
 
@@ -133,12 +134,19 @@ export default function Dashboard() {
     }
   });
 
+  const workOrders: any[] = (otResult?.data || []) as any[];
+  const activeOTs = useMemo(() => {
+    let filtered = workOrders.filter((o) => o.status !== "completada" && o.status !== "cancelada");
+    if (priorityFilter !== "all") {
+      filtered = filtered.filter((o) => o.priority === priorityFilter);
+    }
+    return filtered;
+  }, [workOrders, priorityFilter]);
+
   if (userLoading) {
     return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
   }
 
-  const workOrders: any[] = (otResult?.data || []) as any[];
-  const activeOTs = workOrders.filter((o) => o.status !== "completada");
   const budgets: any[] = (budgetsResult?.data || []) as any[];
   const clients: any[] = (clientsResult?.data || []) as any[];
   const products: any[] = (productsResult?.data || []) as any[];
@@ -332,19 +340,33 @@ export default function Dashboard() {
                   <ThunderboltOutlined />
                 </div>
                 <Title level={5} style={{ margin: 0 }}>Cola de Trabajos</Title>
-                <Tag style={{ margin: 0, fontSize: 11, borderRadius: 20 }}>{activeOTs.length} activas</Tag>
+                <Tag style={{ margin: 0, fontSize: 11, borderRadius: 20 }}>{activeOTs.length} activos</Tag>
               </div>
-              {canViewBudgets && (
-                <Button
-                  type="primary"
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Select
                   size="small"
-                  icon={<PlusOutlined />}
-                  onClick={() => router.push("/work-orders/create")}
-                  style={{ borderRadius: 8 }}
-                >
-                  Nueva OT
-                </Button>
-              )}
+                  value={priorityFilter}
+                  onChange={setPriorityFilter}
+                  style={{ width: 120 }}
+                  options={[
+                    { label: "Todas", value: "all" },
+                    { label: "Normal", value: "normal" },
+                    { label: "Inmediata", value: "inmediata" },
+                  ]}
+                  dropdownStyle={{ borderRadius: 8 }}
+                />
+                {canViewBudgets && (
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => router.push("/work-orders/create")}
+                    style={{ borderRadius: 8 }}
+                  >
+                    Nueva OT
+                  </Button>
+                )}
+              </div>
             </div>
             <Divider style={{ margin: 0 }} />
 
@@ -366,13 +388,14 @@ export default function Dashboard() {
                     }
                   `}</style>
                   
-                  {workOrders.length === 0 ? (
+                  {activeOTs.length === 0 ? (
                     <Empty description="No hay órdenes de trabajo activas" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                   ) : (
                     <>
-                      {workOrders.map((ot: any) => {
+                      {activeOTs.map((ot: any) => {
                         const tasks = (tasksResult?.data || []).filter((t: any) => t.work_order === ot.id);
                         const progress = calcProgress(tasks);
+                        const isInmediata = ot.priority === "inmediata";
                         
                         return (
                           <div 
@@ -380,89 +403,62 @@ export default function Dashboard() {
                             className="ot-card"
                             onClick={() => router.push(`/work-orders/${ot.id}`)}
                             style={{
-                              padding: "16px 20px",
-                              borderRadius: "16px",
+                              padding: "12px 16px",
+                              borderRadius: "12px",
                               background: "#fff",
-                              cursor: "pointer"
+                              cursor: "pointer",
+                              borderLeft: isInmediata ? "4px solid #ff4d4f" : "1px solid #f1f5f9"
                             }}
                           >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8" }}>#{ot.id}</span>
-                                  <Text strong style={{ fontSize: 14, color: "#1e293b" }}>
-                                    {ot.title}
-                                  </Text>
+                            <Row align="middle" gutter={16}>
+                              <Col flex="auto">
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", background: "#f8fafc", padding: "2px 6px", borderRadius: 4 }}>#{ot.id}</span>
+                                  <Text strong style={{ fontSize: 14, color: "#1e293b" }}>{ot.title}</Text>
+                                  {isInmediata && <Tag color="volcano" style={{ fontSize: 9, margin: 0, borderRadius: 4, height: 18, lineHeight: '16px' }}>INMEDIATA</Tag>}
                                 </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                                  <Tag color={otStatusColor[ot.status] || "default"} style={{ fontSize: 10, margin: 0, borderRadius: 6, border: "none", padding: "0 8px" }}>
-                                    {ot.status.replace("_", " ").toUpperCase()}
-                                  </Tag>
-                                  
-                                  {ot.priority === "inmediata" && (
-                                    <Tag color="volcano" icon={<ThunderboltOutlined />} style={{ borderRadius: 6, fontSize: 10, margin: 0, border: "none" }}>
-                                      INMEDIATA
-                                    </Tag>
-                                  )}
-
-                                  {ot.due_date && (
-                                    <Tag 
-                                      color={dayjs(ot.due_date).isBefore(dayjs(), 'day') || dayjs(ot.due_date).isSame(dayjs(), 'day') ? "error" : "blue"} 
-                                      icon={<CalendarOutlined />} 
-                                      style={{ borderRadius: 6, fontSize: 10, margin: 0, border: "none" }}
-                                    >
-                                      {dayjs(ot.due_date).format("DD/MM HH:mm")}
-                                    </Tag>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                {tasks.length > 0 && (
-                                  <div style={{ display: "flex", alignItems: "center" }}>
-                                    {tasks.slice(0, 3).map((t: any, i: number) => (
-                                      <Tooltip key={t.id} title={t.sector_name}>
-                                        <div style={{ 
-                                          width: 8, height: 8, borderRadius: "50%", 
-                                          background: t.status === "completada" ? "#10b981" : t.status === "en_proceso" ? "#3b82f6" : "#e2e8f0",
-                                          marginLeft: i > 0 ? -2 : 0,
-                                          border: "2px solid #fff",
-                                          boxSizing: "content-box"
-                                        }} />
-                                      </Tooltip>
-                                    ))}
-                                    {tasks.length > 3 && <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 4 }}>+{tasks.length - 3}</span>}
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                    <UserOutlined style={{ fontSize: 10, color: "#94a3b8" }} />
+                                    <span style={{ fontSize: 11, color: "#64748b" }}>{ot.client_name || "Sin cliente"}</span>
                                   </div>
-                                )}
-                                <RightOutlined style={{ fontSize: 12, color: "#cbd5e1" }} />
-                              </div>
-                            </div>
-
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <div style={{ flex: 1 }}>
+                                  {ot.due_date && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                      <CalendarOutlined style={{ fontSize: 10, color: dayjs(ot.due_date).isBefore(dayjs()) ? "#ff4d4f" : "#94a3b8" }} />
+                                      <span style={{ fontSize: 11, color: dayjs(ot.due_date).isBefore(dayjs()) ? "#ff4d4f" : "#64748b", fontWeight: dayjs(ot.due_date).isBefore(dayjs()) ? 600 : 400 }}>
+                                        {dayjs(ot.due_date).format("DD/MM HH:mm")}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </Col>
+                              
+                              <Col style={{ width: 140 }}>
+                                <div style={{ marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: progress === 100 ? "#10b981" : "#64748b" }}>{progress}%</span>
+                                  <div style={{ display: "flex", gap: 2 }}>
+                                    {tasks.slice(0, 4).map((t: any) => (
+                                      <div key={t.id} style={{ 
+                                        width: 6, height: 6, borderRadius: "50%", 
+                                        background: t.status === "completada" ? "#10b981" : t.status === "en_proceso" ? "#3b82f6" : "#e2e8f0"
+                                      }} />
+                                    ))}
+                                  </div>
+                                </div>
                                 <Progress 
                                   percent={progress} 
                                   size="small" 
-                                  strokeColor={{
-                                    '0%': '#3b82f6',
-                                    '100%': '#10b981',
-                                  }}
+                                  strokeColor={progress === 100 ? "#10b981" : "#3b82f6"}
                                   trailColor="#f1f5f9"
                                   showInfo={false}
-                                  style={{ marginBottom: 0 }}
+                                  strokeWidth={4}
                                 />
-                              </div>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: progress === 100 ? "#10b981" : "#64748b", minWidth: 35, textAlign: "right" }}>
-                                {progress}%
-                              </span>
-                            </div>
-                            
-                            {ot.client_name && (
-                              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                                <UserOutlined style={{ fontSize: 10, color: "#94a3b8" }} />
-                                <span style={{ fontSize: 11, color: "#64748b" }}>{ot.client_name}</span>
-                              </div>
-                            )}
+                              </Col>
+
+                              <Col>
+                                <RightOutlined style={{ fontSize: 12, color: "#cbd5e1" }} />
+                              </Col>
+                            </Row>
                           </div>
                         );
                       })}

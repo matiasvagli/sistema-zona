@@ -28,7 +28,20 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
         task.status = SectorTask.Status.COMPLETADA
         task.save()
         self._notificar_sectores_pendientes(task, request.user)
+        self._cerrar_ot_si_completa(task)
         return Response(self.get_serializer(task).data)
+
+    def _cerrar_ot_si_completa(self, task_completada):
+        """Si todas las tareas de la OT están completadas, cierra la OT."""
+        wo = task_completada.work_order
+        pendientes = SectorTask.objects.filter(
+            work_order=wo
+        ).exclude(
+            status=SectorTask.Status.COMPLETADA
+        ).exists()
+        if not pendientes:
+            wo.status = 'completada'
+            wo.save(update_fields=['status'])
 
     def _notificar_sectores_pendientes(self, task_completada, actor):
         """Envía mensaje directo a usuarios de los sectores que aún no terminaron en esta OT."""
