@@ -9,7 +9,7 @@ import {
 } from "antd";
 import {
   ClockCircleOutlined, WarningOutlined, FireOutlined,
-  PlayCircleOutlined, CheckCircleOutlined, StopOutlined, PlusOutlined,
+  PlayCircleOutlined, CheckCircleOutlined, StopOutlined, PlusOutlined, CloseOutlined,
   ReloadOutlined, EyeOutlined, ShoppingCartOutlined, EditOutlined, MessageOutlined,
   DownOutlined, AppstoreOutlined, HistoryOutlined,
 } from "@ant-design/icons";
@@ -24,7 +24,7 @@ dayjs.extend(relativeTime);
 dayjs.locale("es");
 
 const { Title, Text } = Typography;
-const { Option } = Select;
+
 
 import { API_URL as API } from "@/config/api";
 import { TASK_STATUS, OT_STATUS, SECTOR_COLORS } from "@/constants/statuses";
@@ -38,7 +38,8 @@ function WOTable({
   canEditSector,
   actionLoading,
   changeStatus,
-  setMatOTId,
+  setMatTaskId,
+  setMatTaskSectorId,
   setMatModal,
   setEstimateModal,
   setEstimateDate,
@@ -282,7 +283,7 @@ function WOTable({
                           <Tooltip title="Asignar Materiales">
                             <Button
                               size="small" icon={<ShoppingCartOutlined />}
-                              onClick={() => { setMatOTId(wo.id); setMatModal(true); }}
+                              onClick={() => { setMatTaskId(task.id); setMatTaskSectorId(sector.id); setMatModal(true); }}
                               style={{ fontSize: 11, height: 24, width: 24, borderRadius: 5, padding: 0, background: "#fa8c16", color: "#fff", border: "none" }}
                             />
                           </Tooltip>
@@ -348,11 +349,28 @@ export default function PipelinePage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [viewNote, setViewNote] = useState<{ open: boolean; text: string; sector: string }>({ open: false, text: "", sector: "" });
   const [matModal, setMatModal] = useState(false);
-  const [matProduct, setMatProduct] = useState<number | null>(null);
-  const [matQty, setMatQty] = useState<number>(1);
-  const [matNotes, setMatNotes] = useState("");
-  const [matOTId, setMatOTId] = useState<number | null>(null);
+  const [matTaskId, setMatTaskId] = useState<number | null>(null);
+  const [matTaskSectorId, setMatTaskSectorId] = useState<number | null>(null);
   const [savingMat, setSavingMat] = useState(false);
+  // Carrito de materiales
+  type MatItem = { product: number; qty: number; notes: string };
+  const [matItems, setMatItems] = useState<MatItem[]>([]);
+  const [matInputProduct, setMatInputProduct] = useState<number | null>(null);
+  const [matInputQty, setMatInputQty] = useState<number>(1);
+  const [matInputNotes, setMatInputNotes] = useState("");
+
+  const matAddToCart = () => {
+    if (!matInputProduct || !matInputQty) return;
+    setMatItems((prev) => [...prev, { product: matInputProduct, qty: matInputQty, notes: matInputNotes }]);
+    setMatInputProduct(null);
+    setMatInputQty(1);
+    setMatInputNotes("");
+  };
+
+  const matReset = () => {
+    setMatModal(false); setMatTaskId(null); setMatTaskSectorId(null);
+    setMatItems([]); setMatInputProduct(null); setMatInputQty(1); setMatInputNotes("");
+  };
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
@@ -393,6 +411,10 @@ export default function PipelinePage() {
 
   const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 200 } });
   const allProducts: any[] = productsResult?.data || [];
+  // Productos disponibles para el sector activo: los del sector + los globales (sector=null)
+  const modalProducts = allProducts.filter(
+    (p) => !p.sector || p.sector === matTaskSectorId
+  );
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -408,17 +430,31 @@ export default function PipelinePage() {
     }
   };
 
-  const addMaterial = async () => {
-    if (!matProduct || !matQty || !matOTId) return;
+  const sendMaterials = async () => {
+    if (!matItems.length || !matTaskId) return;
     setSavingMat(true);
     try {
-      await axiosInstance.post(`${API}/work-order-materials/`, {
-        work_order: matOTId, product: matProduct, quantity: matQty, notes: matNotes,
-      });
-      notification.success({ message: "Material asignado correctamente" });
-      setMatModal(false); setMatProduct(null); setMatQty(1); setMatNotes("");
+      const results = await Promise.all(
+        matItems.map((item) =>
+          axiosInstance.post(`${API}/material-reservations/`, {
+            sector_task: matTaskId, product: item.product, quantity: item.qty, notes: item.notes,
+          })
+        )
+      );
+      const warnings = results.map((r) => r.data.warning).filter(Boolean);
+      if (warnings.length > 0) {
+        notification.warning({
+          message: "Pedido enviado con advertencias de stock",
+          description: warnings.join(" / "),
+          duration: 10,
+        });
+      } else {
+        notification.success({ message: `${matItems.length} material${matItems.length > 1 ? "es" : ""} solicitado${matItems.length > 1 ? "s" : ""} — pendientes de aprobación` });
+      }
+      matReset();
+      refresh();
     } catch (e: any) {
-      notification.error({ message: e?.response?.data?.detail || "Error al asignar material" });
+      notification.error({ message: e?.response?.data?.detail || "Error al solicitar materiales" });
     } finally { setSavingMat(false); }
   };
 
@@ -500,7 +536,7 @@ export default function PipelinePage() {
 
   const sharedProps = {
     sectors, taskMap, canEditSector, actionLoading, changeStatus,
-    setMatOTId, setMatModal, setEstimateModal, setEstimateDate,
+    setMatTaskId, setMatTaskSectorId, setMatModal, setEstimateModal, setEstimateDate,
     setNotesModal, setViewNote, router,
   };
 
@@ -706,37 +742,142 @@ export default function PipelinePage() {
         />
       </Modal>
 
-      {/* Modal Asignar Materiales */}
+      {/* Modal Pedir Materiales */}
       <Modal
-        title={`Asignar Materiales a OT #${matOTId}`}
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <ShoppingCartOutlined style={{ fontSize: 18, color: "#fa8c16" }} />
+            <span>Pedir materiales</span>
+            {matItems.length > 0 && (
+              <span style={{ fontSize: 12, fontWeight: 700, background: "#fa8c16", color: "#fff", borderRadius: 20, padding: "1px 10px" }}>
+                {matItems.length}
+              </span>
+            )}
+          </div>
+        }
         open={matModal}
-        onOk={addMaterial}
-        onCancel={() => setMatModal(false)}
+        onOk={sendMaterials}
+        onCancel={matReset}
         confirmLoading={savingMat}
-        okText="Asignar" cancelText="Cancelar" width={500}
+        okText={matItems.length > 0 ? `Enviar ${matItems.length} pedido${matItems.length > 1 ? "s" : ""}` : "Enviar pedido"}
+        cancelText="Cancelar"
+        width={580}
+        okButtonProps={{ disabled: matItems.length === 0, style: matItems.length > 0 ? { background: "#fa8c16", borderColor: "#fa8c16" } : {} }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "10px 0" }}>
-          <div>
-            <p style={{ marginBottom: 6 }}>Producto:</p>
-            <Select
-              showSearch placeholder="Buscar producto..."
-              style={{ width: "100%" }} optionFilterProp="children"
-              onChange={setMatProduct} value={matProduct}
+        {/* Formulario agregar ítem */}
+        <div style={{
+          background: "#fafafa", border: "1px solid #e2e8f0",
+          borderRadius: 10, padding: "14px 16px", marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#8c8c8c", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Agregar material
+          </p>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px" }}>
+              <p style={{ marginBottom: 4, fontSize: 12, fontWeight: 500 }}>Producto</p>
+              <Select
+                showSearch placeholder="Buscar producto..."
+                style={{ width: "100%" }} optionFilterProp="label"
+                onChange={setMatInputProduct} value={matInputProduct}
+                options={modalProducts.map((p: any) => {
+                  const available = p.available_qty ?? p.stock_qty;
+                  const hasReserved = Number(p.reserved_qty) > 0;
+                  return {
+                    value: p.id,
+                    label: `${p.name} (${p.unit}) — disponible: ${available}${hasReserved ? ` (total: ${p.stock_qty}, reservado: ${p.reserved_qty})` : ""}`,
+                  };
+                })}
+              />
+            </div>
+            <div style={{ flex: "0 0 100px" }}>
+              <p style={{ marginBottom: 4, fontSize: 12, fontWeight: 500 }}>Cantidad</p>
+              <InputNumber
+                min={0.01} step={0.5} style={{ width: "100%" }}
+                value={matInputQty} onChange={(v) => setMatInputQty(v || 1)}
+              />
+            </div>
+            <div style={{ flex: "1 1 140px" }}>
+              <p style={{ marginBottom: 4, fontSize: 12, fontWeight: 500 }}>Notas</p>
+              <Input
+                placeholder="Ej: color rojo, 2.5 mts..."
+                value={matInputNotes} onChange={(e) => setMatInputNotes(e.target.value)}
+                onPressEnter={matAddToCart}
+              />
+            </div>
+            <Button
+              type="primary" icon={<PlusOutlined />}
+              onClick={matAddToCart}
+              disabled={!matInputProduct || !matInputQty}
+              style={{ flexShrink: 0, height: 32 }}
             >
-              {allProducts.map((p) => (
-                <Option key={p.id} value={p.id}>{p.name} ({p.unit}) - Stock: {p.stock}</Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <p style={{ marginBottom: 6 }}>Cantidad:</p>
-            <InputNumber min={0.01} style={{ width: "100%" }} value={matQty} onChange={(v) => setMatQty(v || 1)} />
-          </div>
-          <div>
-            <p style={{ marginBottom: 6 }}>Notas / Medidas:</p>
-            <Input placeholder="Ej: 2.5 mts" value={matNotes} onChange={(e) => setMatNotes(e.target.value)} />
+              Agregar
+            </Button>
           </div>
         </div>
+
+        {/* Lista de ítems del carrito */}
+        {matItems.length === 0 ? (
+          <div style={{
+            textAlign: "center", padding: "24px 0", color: "#bfbfbf",
+            border: "1px dashed #d9d9d9", borderRadius: 8,
+          }}>
+            <ShoppingCartOutlined style={{ fontSize: 28, display: "block", marginBottom: 6 }} />
+            <span style={{ fontSize: 13 }}>Todavía no agregaste materiales</span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#8c8c8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>
+              Lista de pedido
+            </p>
+            {matItems.map((item, idx) => {
+              const prod = allProducts.find((p: any) => p.id === item.product);
+              const available = Number(prod?.available_qty ?? prod?.stock_qty ?? 0);
+              const overStock = item.qty > available;
+              return (
+                <div key={idx} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  background: overStock ? "#fff7e6" : "#fff",
+                  border: `1px solid ${overStock ? "#ffd591" : "#e2e8f0"}`,
+                  borderRadius: 8, padding: "8px 12px",
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 6,
+                    background: overStock ? "#fff1e6" : "#fff7e6",
+                    border: `1px solid ${overStock ? "#fa8c16" : "#ffd591"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#fa8c16",
+                  }}>
+                    {overStock ? <WarningOutlined style={{ fontSize: 13 }} /> : idx + 1}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text strong style={{ fontSize: 13, display: "block" }} ellipsis>
+                      {prod?.name ?? "—"}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {item.qty} {prod?.unit ?? ""}
+                      {item.notes && <> · {item.notes}</>}
+                    </Text>
+                    {overStock && (
+                      <Text style={{ fontSize: 11, color: "#d46b08" }}>
+                        ⚠ Solo hay {available} {prod?.unit} disponibles — el admin decidirá
+                      </Text>
+                    )}
+                  </div>
+                  <Button
+                    type="text" size="small" danger
+                    icon={<CloseOutlined style={{ fontSize: 11 }} />}
+                    onClick={() => setMatItems((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{ flexShrink: 0, opacity: 0.6 }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <p style={{ color: "#8c8c8c", fontSize: 12, marginTop: 14 }}>
+          Los pedidos quedarán pendientes de aprobación por el equipo admin antes de descontar stock.
+        </p>
       </Modal>
     </div>
   );

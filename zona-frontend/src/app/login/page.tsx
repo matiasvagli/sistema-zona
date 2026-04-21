@@ -1,47 +1,47 @@
 "use client";
 
 import { useLogin } from "@refinedev/core";
-import { Button, Checkbox, Form, Input, Layout, Typography, Card } from "antd";
+import { Button, Checkbox, Form, Input, Layout, Typography, Card, Row, Col } from "antd";
 import { UserOutlined, LockOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 const { Title } = Typography;
 
 export default function Login() {
-  const { mutate: login, isLoading } = useLogin();
+  const { mutate: login, isPending } = useLogin();
 
   const onFinish = (values: any) => {
     login(values);
   };
 
   return (
-    <div style={{
-      display: "flex",
-      height: "100vh",
-      width: "100vw",
-      overflow: "hidden",
-      background: "#fff"
-    }}>
-      {/* Columna Izquierda: Formulario */}
-      <div style={{
-        flex: "0 0 500px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-start",
-        padding: "100px 80px 40px 80px",
-        zIndex: 2,
-        background: "#f8fafc", // Gris pizarra ultra suave (muy pro)
-        borderRight: "1px solid #e2e8f0"
-      }}>
-        <div style={{ marginBottom: 50 }}>
+    <Row style={{ height: "100vh", width: "100vw", overflow: "hidden", background: "#fff" }}>
+      {/* Columna Izquierda: Formulario (Responsive) */}
+      <Col 
+        xs={24} 
+        md={12} 
+        lg={10} 
+        xl={8}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-start",
+          padding: "clamp(40px, 8vh, 100px) clamp(30px, 5vw, 80px) 40px",
+          zIndex: 2,
+          background: "#f8fafc",
+          borderRight: "1px solid #e2e8f0",
+          overflowY: "auto"
+        }}
+      >
+        <div style={{ marginBottom: "clamp(30px, 5vh, 50px)" }}>
           <img
             src="/logo1.png"
             alt="Zona Urbana"
-            style={{ width: "300px", marginBottom: "32px", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.05))" }}
+            style={{ width: "clamp(150px, 20vw, 220px)", marginBottom: "32px", filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.05))" }}
           />
-          <Title level={1} style={{ margin: 0, color: "#0f172a", fontWeight: 900, letterSpacing: "-1.5px", fontSize: "36px", lineHeight: "1.2" }}>
+          <Title level={1} style={{ margin: 0, color: "#0f172a", fontWeight: 900, letterSpacing: "-1.5px", fontSize: "clamp(28px, 3vw, 36px)", lineHeight: "1.2" }}>
             Sistema de Gestión.
           </Title>
-          <Typography.Text style={{ color: "#64748b", fontSize: "16px", fontWeight: 500, display: "block", marginTop: "8px" }}>
+          <Typography.Text style={{ color: "#64748b", fontSize: "clamp(14px, 1.5vw, 16px)", fontWeight: 500, display: "block", marginTop: "8px" }}>
             Ingresa a la plataforma administrativa.
           </Typography.Text>
         </div>
@@ -53,7 +53,7 @@ export default function Login() {
           layout="vertical"
           requiredMark={false}
           size="large"
-          style={{ width: "100%" }}
+          style={{ width: "100%", maxWidth: "400px", margin: "0 auto 0 0" }}
         >
           <Form.Item
             name="username"
@@ -83,7 +83,7 @@ export default function Login() {
             <Button
               type="primary"
               htmlType="submit"
-              loading={isLoading}
+              loading={isPending}
               block
               style={{ 
                 height: 52, 
@@ -106,7 +106,7 @@ export default function Login() {
           </div>
         </Form>
 
-        <div style={{ marginTop: "auto", paddingBottom: 40 }}>
+        <div style={{ marginTop: "auto", paddingTop: 40 }}>
           <div style={{ 
             display: "flex", 
             alignItems: "center", 
@@ -129,19 +129,24 @@ export default function Login() {
             <span style={{ color: "#ef4444", fontWeight: 600, fontSize: "11px" }}>● Acceso restringido - Solo personal autorizado</span>
           </Typography.Text>
         </div>
-      </div>
+      </Col>
 
-      {/* Columna Derecha: Imagen de Impacto */}
-      <div style={{
-        flex: 1,
-        backgroundImage: "url('/zonanoche.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        position: "relative",
-        display: "flex",
-        alignItems: "flex-end",
-        padding: "80px"
-      }}>
+      {/* Columna Derecha: Imagen de Impacto (Oculta en móviles) */}
+      <Col 
+        xs={0} 
+        md={12} 
+        lg={14} 
+        xl={16}
+        style={{
+          backgroundImage: "url('/zonanoche.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          position: "relative",
+          display: "flex",
+          alignItems: "flex-end",
+          padding: "clamp(40px, 8vw, 80px)"
+        }}
+      >
         {/* Overlay gradiente para que el texto resalte */}
         <div style={{
           position: "absolute",
@@ -154,14 +159,14 @@ export default function Login() {
         }} />
 
         <div style={{ position: "relative", zIndex: 2, color: "#fff" }}>
-          <Title style={{ color: "#fff", fontSize: "48px", fontWeight: 900, marginBottom: 16, lineHeight: 1 }}>
+          <Title style={{ color: "#fff", fontSize: "clamp(32px, 4vw, 48px)", fontWeight: 900, marginBottom: 16, lineHeight: 1 }}>
             Publicidad que <br /> se hace notar.
           </Title>
-          <Typography.Text style={{ color: "rgba(255,255,255,0.8)", fontSize: "18px" }}>
+          <Typography.Text style={{ color: "rgba(255,255,255,0.8)", fontSize: "clamp(14px, 1.5vw, 18px)" }}>
             Panel de control avanzado para la gestión de medios <br /> en vía pública.
           </Typography.Text>
         </div>
-      </div>
-    </div>
+      </Col>
+    </Row>
   );
 }

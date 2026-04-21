@@ -44,7 +44,7 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                                     if (["create", "edit", "delete"].includes(action)) {
                                         return { can: false };
                                     }
-                                    const allowedForEmpleado = ["dashboard", "work-orders", "pipeline", "sectors", "sector-tasks"];
+                                    const allowedForEmpleado = ["dashboard", "work-orders", "pipeline", "products", "sector-tasks"];
                                     if (allowedForEmpleado.includes(resource || "")) {
                                         return { can: true };
                                     }

@@ -76,14 +76,3 @@ class WorkOrderPhoto(models.Model):
         return f"Foto {self.category} - {self.work_order.title}"
 
 
-class WorkOrderMaterial(models.Model):
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='materials')
-    product    = models.ForeignKey('inventory.Product', on_delete=models.PROTECT, related_name='ot_uses')
-    quantity   = models.DecimalField(max_digits=10, decimal_places=2)
-    notes      = models.CharField(max_length=255, blank=True)
-
-    class Meta:
-        unique_together = ('work_order', 'product')
-
-    def __str__(self):
-        return f"{self.work_order} — {self.product.name} x{self.quantity}"

@@ -3,9 +3,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.conf import settings
-from .models import WorkOrder, WorkOrderMaterial
-from .serializers import WorkOrderSerializer, WorkOrderMaterialSerializer
+from .models import WorkOrder
+from .serializers import WorkOrderSerializer
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
@@ -42,32 +41,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     def remove_photo(self, request, pk=None):
         ot = self.get_object()
         photo_id = request.data.get('id')
-        url = request.data.get('url') # Por compatibilidad con legacy si fuera necesario
+        url = request.data.get('url')
 
         from .models import WorkOrderPhoto
         if photo_id:
             photo = WorkOrderPhoto.objects.filter(work_order=ot, id=photo_id).first()
         else:
-            # Búsqueda fallback por URL si no envían ID
-            # Esto es más complejo por el path dinámico, pero útil para migración
             filename = url.split('/')[-1] if url else None
             photo = WorkOrderPhoto.objects.filter(work_order=ot, image__icontains=filename).first()
 
         if photo:
-            photo.image.delete() # Borra el archivo físico
+            photo.image.delete()
             photo.delete()
             return Response({'ok': True})
-        
+
         return Response({'detail': 'Foto no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
-
-
-class WorkOrderMaterialViewSet(viewsets.ModelViewSet):
-    queryset = WorkOrderMaterial.objects.select_related('product').all()
-    serializer_class = WorkOrderMaterialSerializer
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        ot_id = self.request.query_params.get('work_order')
-        if ot_id:
-            qs = qs.filter(work_order_id=ot_id)
-        return qs

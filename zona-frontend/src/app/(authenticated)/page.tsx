@@ -24,6 +24,9 @@ import {
   RightOutlined,
   ArrowRightOutlined,
   MessageOutlined,
+  WarningOutlined,
+  ShoppingOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import dayjs from "dayjs";
@@ -114,6 +117,15 @@ export default function Dashboard() {
     }
   });
 
+  const { result: purchaseReqsResult } = useList({
+    resource: "purchase-requests",
+    filters: [{ field: "status", operator: "eq", value: "pendiente" }],
+    pagination: { pageSize: 50 },
+    queryOptions: {
+      enabled: canViewBudgets && !!user
+    }
+  });
+
   const { result: productsResult } = useList({
     resource: "products",
     pagination: { pageSize: 10 },
@@ -151,6 +163,7 @@ export default function Dashboard() {
   const budgets: any[] = (budgetsResult?.data || []) as any[];
   const clients: any[] = (clientsResult?.data || []) as any[];
   const products: any[] = (productsResult?.data || []) as any[];
+  const purchaseReqs: any[] = (purchaseReqsResult?.data || []) as any[];
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -379,12 +392,12 @@ export default function Dashboard() {
                   <style>{`
                     .ot-card {
                       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                      border: 1px solid #f1f5f9;
+                      border: 1px solid #e2e8f0;
                     }
                     .ot-card:hover {
                       transform: translateY(-2px);
                       box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.05);
-                      border-color: #e2e8f0;
+                      border-color: #cbd5e1;
                       background: #f8fafc !important;
                     }
                   `}</style>
@@ -408,7 +421,7 @@ export default function Dashboard() {
                               borderRadius: "12px",
                               background: "#fff",
                               cursor: "pointer",
-                              borderLeft: isInmediata ? "4px solid #ff4d4f" : "1px solid #f1f5f9"
+                              borderLeft: isInmediata ? "4px solid #ff4d4f" : "1px solid #e2e8f0"
                             }}
                           >
                             <Row align="middle" gutter={16}>
@@ -573,95 +586,106 @@ export default function Dashboard() {
               )}
             </Card>
 
-            {/* Presupuestos recientes */}
+            {/* Alertas de Inventario (Admin) */}
             {canViewBudgets && (
               <Card
                 variant="borderless"
-                style={{ borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
+                style={{ borderRadius: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}
                 styles={{ body: { padding: 0 } }}
               >
-                <div style={{ padding: "18px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: "#fffbeb", display: "flex", alignItems: "center", justifyContent: "center", color: "#d97706", fontSize: 14 }}>
-                      <FileTextOutlined />
+                <div style={{ padding: "18px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", background: "linear-gradient(to right, #fff, #f8fafc)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16, boxShadow: "0 4px 10px rgba(245,158,11,0.3)" }}>
+                      <WarningOutlined />
                     </div>
-                    <Title level={5} style={{ margin: 0 }}>Presupuestos</Title>
+                    <Title level={5} style={{ margin: 0, color: "#1e293b", fontWeight: 700 }}>Alertas de Inventario</Title>
                   </div>
                   <Button
-                    size="small"
-                    icon={<PlusOutlined />}
-                    onClick={() => router.push("/budgets/create")}
-                    style={{ borderRadius: 8, fontSize: 12 }}
+                    type="link"
+                    onClick={() => router.push("/products")}
+                    style={{ padding: 0, fontWeight: 600, fontSize: 13, color: "#1677ff" }}
                   >
-                    Nuevo
+                    Ver catálogo <ArrowRightOutlined />
                   </Button>
                 </div>
-
-                <div style={{ display: "flex", gap: 6, padding: "0 20px 12px", flexWrap: "wrap" }}>
-                  {[
-                    { label: "Borrador", count: budgets.filter(b => b.status === "borrador").length, color: "#8c8c8c", bg: "#f5f5f5" },
-                    { label: "Aprobado", count: budgets.filter(b => b.status === "aprobado").length, color: "#059669", bg: "#ecfdf5" },
-                    { label: "Facturado", count: budgets.filter(b => b.status === "facturado").length, color: "#1677ff", bg: "#e6f4ff" },
-                    { label: "Rechazado", count: budgets.filter(b => b.status === "rechazado").length, color: "#dc2626", bg: "#fef2f2" },
-                  ].map(s => s.count > 0 ? (
-                    <span key={s.label} style={{
-                      padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-                      color: s.color, background: s.bg,
-                    }}>
-                      {s.count} {s.label}
-                    </span>
-                  ) : null)}
+                
+                {/* Bajo Stock */}
+                <div style={{ padding: "16px 24px 8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} />
+                        <Text strong style={{ fontSize: 12, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Productos bajo mínimo</Text>
+                    </div>
                 </div>
-
-                <Divider style={{ margin: 0 }} />
-                {budgets.length === 0 ? (
-                  <Empty description="Sin presupuestos" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
+                {products.filter(p => p.stock_bajo).length === 0 ? (
+                  <div style={{ padding: "10px 24px 20px", color: "#94a3b8", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                      <CheckCircleOutlined style={{ color: "#10b981" }} /> Stock en niveles óptimos.
+                  </div>
                 ) : (
                   <div>
-                    {budgets.slice(0, 5).map((b: any, idx: number, arr) => {
-                      const stMap: Record<string, { color: string; label: string }> = {
-                        borrador: { color: "default", label: "Borrador" },
-                        aprobado: { color: "success", label: "Aprobado" },
-                        rechazado: { color: "error", label: "Rechazado" },
-                        facturado: { color: "blue", label: "Facturado" },
-                      };
-                      const st = stMap[b.status] || stMap.borrador;
-                      const isLast = idx === arr.length - 1;
-                      return (
-                        <div
-                          key={b.id}
-                          onClick={() => router.push(`/budgets/${b.id}`)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 8,
-                            padding: "10px 20px",
-                            borderBottom: isLast ? "none" : "1px solid #f5f5f5",
-                            cursor: "pointer",
-                            transition: "background 0.1s",
-                          }}
-                          onMouseEnter={e => (e.currentTarget.style.background = "#fafafa")}
-                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <Text type="secondary" style={{ fontSize: 10 }}>PRE-{String(b.id).padStart(4, "0")}</Text>
-                              <Text strong style={{ fontSize: 12 }} ellipsis>{b.client_name}</Text>
+                    {products.filter(p => p.stock_bajo).slice(0, 3).map((p: any, idx, arr) => (
+                      <div 
+                        key={p.id} 
+                        style={{ 
+                            padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", 
+                            borderBottom: idx === arr.length - 1 ? "none" : "1px solid #f1f5f9",
+                            cursor: "pointer", transition: "background 0.2s"
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                        onClick={() => router.push("/products")}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                                <ToolOutlined />
                             </div>
-                          </div>
-                          <Tag color={st.color as any} style={{ fontSize: 10, margin: 0 }}>{st.label}</Tag>
-                          {b.total_amount != null && (
-                            <Text strong style={{ fontSize: 12, color: "#059669", flexShrink: 0 }}>
-                              ${Number(b.total_amount).toLocaleString("es-AR")}
-                            </Text>
-                          )}
-                          <RightOutlined style={{ color: "#d9d9d9", fontSize: 10 }} />
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                <Text strong style={{ fontSize: 13, color: "#1e293b" }}>{p.name}</Text>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Quedan <span style={{ color: "#ef4444", fontWeight: 600 }}>{Number(p.available_qty ?? p.stock_qty).toLocaleString("es-AR")}</span> {p.unit} (Mín: {p.alert_qty})</Text>
+                            </div>
                         </div>
-                      );
-                    })}
-                    <div style={{ padding: "10px 20px", borderTop: "1px solid #f0f0f0" }}>
-                      <Button type="link" size="small" onClick={() => router.push("/budgets")} style={{ padding: 0, fontSize: 12 }}>
-                        Ver todos <ArrowRightOutlined />
-                      </Button>
+                        <RightOutlined style={{ color: "#cbd5e1", fontSize: 10 }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Divider style={{ margin: 0, borderColor: "#e2e8f0" }} />
+
+                {/* Pedidos de Compra */}
+                <div style={{ padding: "16px 24px 8px", background: "#fafafa" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6" }} />
+                        <Text strong style={{ fontSize: 12, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pedidos de Empleados</Text>
                     </div>
+                </div>
+                {purchaseReqs.length === 0 ? (
+                  <div style={{ padding: "10px 24px 24px", background: "#fafafa", color: "#94a3b8", fontSize: 13 }}>No hay pedidos pendientes.</div>
+                ) : (
+                  <div style={{ paddingBottom: 12, background: "#fafafa", borderRadius: "0 0 16px 16px" }}>
+                    {purchaseReqs.slice(0, 3).map((r: any, idx, arr) => (
+                      <div 
+                        key={r.id} 
+                        style={{ 
+                            padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", 
+                            borderBottom: idx === arr.length - 1 ? "none" : "1px solid #e2e8f0",
+                            cursor: "pointer", transition: "background 0.2s"
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "#f1f5f9")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                        onClick={() => router.push("/products")}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#e0e7ff", color: "#4f46e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                                <ShoppingOutlined />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                <Text strong style={{ fontSize: 13, color: "#1e293b" }}>{r.product_name}</Text>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Piden <span style={{ color: "#4f46e5", fontWeight: 600 }}>{r.quantity_requested} {r.product_unit}</span> — {r.requested_by_name}</Text>
+                            </div>
+                        </div>
+                        <RightOutlined style={{ color: "#cbd5e1", fontSize: 10 }} />
+                      </div>
+                    ))}
                   </div>
                 )}
               </Card>

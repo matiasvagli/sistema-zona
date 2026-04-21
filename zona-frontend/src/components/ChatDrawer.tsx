@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Drawer, Input, Button, Avatar, Spin, Empty, Badge, notification, Typography, Tooltip } from "antd";
-import { SendOutlined, MessageOutlined, CloseOutlined } from "@ant-design/icons";
+import { Drawer, Input, Button, Avatar, Spin, Empty, Badge, notification, Typography, Tooltip, Popconfirm } from "antd";
+import { SendOutlined, MessageOutlined, CloseOutlined, DeleteOutlined } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
 
@@ -41,27 +41,52 @@ export function ChatDrawer({ open, onClose, currentUserId, recipientId = null, r
     const fetchMessages = async () => {
         try {
             const { data } = await axiosInstance.get(`${API}/messages/`);
-            const all: Message[] = data.results || data;
+            // Manejamos tanto respuestas paginadas como arrays directos
+            const all = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
             
-            // Si recipientId es null, es el chat grupal
-            // Si tiene un valor, es un chat privado entre currentUserId y recipientId
-            const filtered = all.filter((m) => {
-                if (recipientId === null) {
-                    return m.recipient === null;
-                } else {
-                    return (m.sender === currentUserId && m.recipient === recipientId) ||
-                           (m.sender === recipientId && m.recipient === currentUserId);
+            if (all.length === 0) {
+                setMessages([]);
+                return;
+            }
+
+            // Recuperamos la fecha del último vaciado para este usuario y chat específico
+            const clearKey = `chat_clear_${currentUserId}_${recipientId || "group"}`;
+            const clearDateStr = localStorage.getItem(clearKey);
+            const clearDate = clearDateStr ? dayjs(clearDateStr) : null;
+
+            const filtered = all.filter((m: any) => {
+                // Filtro por fecha de vaciado individual
+                if (clearDate && dayjs(m.created_at).isBefore(clearDate)) {
+                    return false;
                 }
+
+                // Si no hay recipientId, es el chat de equipo (mensajes con recipient null o 0)
+                if (!recipientId) {
+                    return !m.recipient;
+                }
+                
+                // Chat privado: comparamos IDs como strings para evitar problemas de tipos
+                const mSender = String(m.sender);
+                const mRecipient = String(m.recipient);
+                const myId = String(currentUserId);
+                const targetId = String(recipientId);
+
+                return (mSender === myId && mRecipient === targetId) ||
+                       (mSender === targetId && mRecipient === myId);
             });
+
             setMessages(filtered);
-        } catch { /* silencioso */ }
+        } catch (err) {
+            console.error("Error al obtener mensajes del chat:", err);
+        }
     };
 
     const markRead = async () => {
         try { 
-            // Marcamos como leídos solo si estamos en un chat privado o grupal
             await axiosInstance.post(`${API}/messages/mark-read/`, { sender_id: recipientId }); 
-        } catch { /* silencioso */ }
+        } catch (err) {
+            console.error("Error al marcar como leído:", err);
+        }
     };
 
     useEffect(() => {
@@ -72,7 +97,7 @@ export function ChatDrawer({ open, onClose, currentUserId, recipientId = null, r
 
         pollerRef.current = setInterval(fetchMessages, POLL_INTERVAL);
         return () => { if (pollerRef.current) clearInterval(pollerRef.current); };
-    }, [open]);
+    }, [open, recipientId]); // Añadimos recipientId a las dependencias por si cambia
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -99,184 +124,265 @@ export function ChatDrawer({ open, onClose, currentUserId, recipientId = null, r
         }
     };
 
+    const clearChat = async () => {
+        try {
+            // Guardamos la fecha actual en localStorage para este chat
+            const clearKey = `chat_clear_${currentUserId}_${recipientId || "group"}`;
+            localStorage.setItem(clearKey, dayjs().toISOString());
+            
+            // Llamamos al back (opcional, solo para informar)
+            await axiosInstance.post(`${API}/messages/clear/`, { sender_id: recipientId });
+            
+            setMessages([]);
+            notification.success({ 
+                message: "Chat vaciado localmente",
+                description: "El historial ha sido ocultado para tu vista, pero se preserva en el servidor por auditoría." 
+            });
+        } catch {
+            notification.error({ message: "Error al vaciar el chat" });
+        }
+    };
+
+    const formatMessageDate = (date: string) => {
+        const d = dayjs(date);
+        if (d.isSame(dayjs(), "day")) return "Hoy";
+        if (d.isSame(dayjs().subtract(1, "day"), "day")) return "Ayer";
+        return d.format("DD [de] MMMM");
+    };
+
     return (
         <Drawer
             open={open}
             onClose={onClose}
-            width={400}
+            width={420}
             title={
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ 
-                        width: 38, height: 38, borderRadius: 12, 
-                        background: "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)", 
+                        width: 42, height: 42, borderRadius: 14, 
+                        background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", 
                         display: "flex", alignItems: "center", justifyContent: "center", 
-                        color: "#fff", boxShadow: "0 4px 12px rgba(124,58,237,0.3)" 
+                        color: "#fff", boxShadow: "0 4px 14px rgba(99,102,241,0.4)" 
                     }}>
-                        <MessageOutlined style={{ fontSize: 18 }} />
+                        <MessageOutlined style={{ fontSize: 20 }} />
                     </div>
-                    <div>
-                        <div style={{ fontWeight: 800, fontSize: 16, color: "#1e293b", lineHeight: 1.2 }}>Chat del Equipo</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800, fontSize: 17, color: "#0f172a", lineHeight: 1.2 }}>
+                            {recipientId ? recipientName : "Canal del Equipo"}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                             <Badge status="success" size="small" />
-                            <Text style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{recipientName}</Text>
+                            <Text style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>En línea</Text>
                         </div>
                     </div>
                 </div>
             }
-            closeIcon={<CloseOutlined style={{ color: "#94a3b8" }} />}
+            extra={
+                <Popconfirm
+                    title="¿Vaciar chat?"
+                    description="Se ocultarán los mensajes de tu vista para mayor orden."
+                    onConfirm={clearChat}
+                    okText="Vaciar"
+                    cancelText="Cancelar"
+                    okButtonProps={{ danger: true, shape: "round" }}
+                >
+                    <Tooltip title="Limpiar vista de chat">
+                        <Button 
+                            type="text" 
+                            shape="circle"
+                            icon={<DeleteOutlined style={{ fontSize: 18 }} />} 
+                            style={{ color: "#94a3b8", display: "flex", alignItems: "center", justifyContent: "center" }}
+                        />
+                    </Tooltip>
+                </Popconfirm>
+            }
+            closeIcon={<CloseOutlined style={{ color: "#64748b", fontSize: 16 }} />}
             styles={{
                 body: { 
                     display: "flex", 
                     flexDirection: "column", 
                     padding: 0, 
                     height: "100%",
-                    background: "#fdfdff" 
+                    background: "#f8fafc" 
                 },
-                header: { borderBottom: "1px solid #f1f5f9", padding: "16px 20px" },
+                header: { 
+                    borderBottom: "1px solid rgba(226, 232, 240, 0.8)", 
+                    padding: "16px 24px",
+                    background: "#fff"
+                },
             }}
         >
-            {/* Messages area con fondo estilizado */}
+            {/* Messages area con sutil patrón de fondo */}
             <div style={{ 
                 flex: 1, 
                 overflowY: "auto", 
-                padding: "20px", 
+                padding: "24px 20px", 
                 display: "flex", 
                 flexDirection: "column", 
-                gap: 16,
-                backgroundImage: "radial-gradient(#e2e8f0 0.5px, transparent 0.5px)",
-                backgroundSize: "20px 20px",
-                backgroundColor: "#f8fafc"
+                gap: 8,
+                backgroundColor: "#f1f5f9",
+                backgroundImage: `url("https://www.transparenttextures.com/patterns/cubes.png")`,
+                scrollBehavior: "smooth"
             }}>
                 {loading ? (
-                    <div style={{ textAlign: "center", paddingTop: 80 }}><Spin size="large" /></div>
+                    <div style={{ textAlign: "center", paddingTop: 100 }}><Spin size="large" /></div>
                 ) : messages.length === 0 ? (
                     <div style={{ 
                         textAlign: "center", 
-                        paddingTop: 100, 
+                        paddingTop: 120, 
                         display: "flex", 
                         flexDirection: "column", 
                         alignItems: "center",
-                        gap: 16 
+                        gap: 20 
                     }}>
                         <div style={{ 
-                            width: 80, height: 80, borderRadius: "50%", 
+                            width: 90, height: 90, borderRadius: 30, 
                             background: "#fff", display: "flex", alignItems: "center", 
-                            justifyContent: "center", fontSize: 32,
-                            boxShadow: "0 10px 25px rgba(0,0,0,0.05)"
+                            justifyContent: "center", fontSize: 40,
+                            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+                            transform: "rotate(-10deg)"
                         }}>
-                            ✉️
+                            💬
                         </div>
                         <div>
-                            <div style={{ fontWeight: 700, fontSize: 16, color: "#64748b" }}>¡Está muy silencioso!</div>
-                            <Text type="secondary" style={{ fontSize: 13 }}>Inicia la conversación con el equipo</Text>
+                            <div style={{ fontWeight: 800, fontSize: 18, color: "#334155" }}>Historial impecable</div>
+                            <Text type="secondary" style={{ fontSize: 14 }}>Inicia una conversación profesional</Text>
                         </div>
                     </div>
                 ) : messages.map((msg, idx) => {
-                    const isMe = msg.sender === currentUserId;
+                    const isMe = String(msg.sender) === String(currentUserId);
                     const showAvatar = !isMe && (idx === 0 || messages[idx-1].sender !== msg.sender);
+                    
+                    const currentDate = dayjs(msg.created_at).format("YYYY-MM-DD");
+                    const prevDate = idx > 0 ? dayjs(messages[idx-1].created_at).format("YYYY-MM-DD") : null;
+                    const showDateSeparator = currentDate !== prevDate;
 
                     return (
-                        <div key={msg.id} style={{ 
-                            display: "flex", 
-                            flexDirection: isMe ? "row-reverse" : "row", 
-                            gap: 10, 
-                            alignItems: "flex-end"
-                        }}>
-                            {!isMe && (
-                                <div style={{ width: 32, flexShrink: 0 }}>
-                                    {showAvatar ? (
-                                        <Avatar size={32} style={{ 
-                                            background: "linear-gradient(135deg, #7c3aed, #4f46e5)", 
-                                            color: "#fff", fontSize: 12, fontWeight: 700,
-                                            boxShadow: "0 4px 8px rgba(124,58,237,0.2)"
-                                        }}>
-                                            {msg.sender_initials}
-                                        </Avatar>
-                                    ) : <div style={{ width: 32 }} />}
+                        <React.Fragment key={msg.id}>
+                            {showDateSeparator && (
+                                <div style={{ 
+                                    display: "flex", 
+                                    alignItems: "center", 
+                                    justifyContent: "center", 
+                                    margin: "24px 0 16px" 
+                                }}>
+                                    <div style={{ 
+                                        padding: "4px 16px", 
+                                        background: "rgba(226, 232, 240, 0.8)", 
+                                        backdropFilter: "blur(4px)",
+                                        borderRadius: 12, 
+                                        fontSize: 11, 
+                                        color: "#475569",
+                                        fontWeight: 700,
+                                        letterSpacing: "0.05em",
+                                        textTransform: "uppercase"
+                                    }}>
+                                        {formatMessageDate(msg.created_at)}
+                                    </div>
                                 </div>
                             )}
-                            <div style={{ maxWidth: "80%" }}>
-                                {showAvatar && (
-                                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, paddingLeft: 4, fontWeight: 600 }}>
-                                        {msg.sender_name}
+                            <div style={{ 
+                                display: "flex", 
+                                flexDirection: isMe ? "row-reverse" : "row", 
+                                gap: 12, 
+                                alignItems: "flex-end",
+                                marginBottom: showAvatar || isMe ? 4 : 2
+                            }}>
+                                {!isMe && (
+                                    <div style={{ width: 36, flexShrink: 0 }}>
+                                        {showAvatar ? (
+                                            <Avatar size={36} style={{ 
+                                                background: "linear-gradient(135deg, #6366f1, #a855f7)", 
+                                                color: "#fff", fontSize: 13, fontWeight: 700,
+                                                boxShadow: "0 4px 10px rgba(99,102,241,0.3)",
+                                                border: "2px solid #fff"
+                                            }}>
+                                                {msg.sender_initials}
+                                            </Avatar>
+                                        ) : <div style={{ width: 36 }} />}
                                     </div>
                                 )}
-                                <div style={{
-                                    background: isMe ? "linear-gradient(135deg, #4f46e5, #0ea5e9)" : "#fff",
-                                    color: isMe ? "#fff" : "#334155",
-                                    padding: "12px 16px",
-                                    borderRadius: isMe ? "20px 20px 4px 20px" : "20px 20px 20px 4px",
-                                    fontSize: 14,
-                                    boxShadow: isMe ? "0 4px 12px rgba(79,70,229,0.25)" : "0 4px 12px rgba(0,0,0,0.03)",
-                                    lineHeight: 1.5,
-                                    wordBreak: "break-word",
-                                    border: isMe ? "none" : "1px solid #f1f5f9"
-                                }}>
-                                    {msg.content}
-                                </div>
-                                <div style={{ 
-                                    fontSize: 10, 
-                                    color: "#94a3b8", 
-                                    marginTop: 4, 
-                                    textAlign: isMe ? "right" : "left", 
-                                    paddingRight: isMe ? 6 : 0, 
-                                    paddingLeft: isMe ? 0 : 6,
-                                    fontWeight: 500
-                                }}>
-                                    {dayjs(msg.created_at).format("HH:mm")}
+                                <div style={{ maxWidth: "75%" }}>
+                                    {!isMe && showAvatar && (
+                                        <div style={{ fontSize: 12, color: "#475569", marginBottom: 4, paddingLeft: 4, fontWeight: 700 }}>
+                                            {msg.sender_name}
+                                        </div>
+                                    )}
+                                    <div style={{
+                                        background: isMe ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "#fff",
+                                        color: isMe ? "#fff" : "#1e293b",
+                                        padding: "10px 16px",
+                                        borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                                        fontSize: 14,
+                                        boxShadow: isMe ? "0 4px 15px rgba(79,70,229,0.2)" : "0 2px 8px rgba(0,0,0,0.04)",
+                                        lineHeight: 1.5,
+                                        wordBreak: "break-word",
+                                        border: isMe ? "none" : "1px solid rgba(226, 232, 240, 0.5)",
+                                        position: "relative"
+                                    }}>
+                                        {msg.content}
+                                    </div>
+                                    <div style={{ 
+                                        fontSize: 10, 
+                                        color: "#94a3b8", 
+                                        marginTop: 4, 
+                                        textAlign: isMe ? "right" : "left", 
+                                        paddingRight: isMe ? 4 : 0, 
+                                        paddingLeft: isMe ? 0 : 4,
+                                        fontWeight: 600
+                                    }}>
+                                        {dayjs(msg.created_at).format("HH:mm")}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </React.Fragment>
                     );
                 })}
                 <div ref={bottomRef} />
             </div>
 
-            {/* Input Área con Glassmorphism */}
+            {/* Input Área Premium */}
             <div style={{ 
-                padding: "20px", 
-                borderTop: "1px solid #f1f5f9", 
+                padding: "20px 24px 30px", 
                 background: "#fff",
-                position: "relative"
+                borderTop: "1px solid #f1f5f9",
+                boxShadow: "0 -10px 30px rgba(0,0,0,0.02)"
             }}>
                 <div style={{
                     display: "flex", 
-                    gap: 10, 
-                    alignItems: "flex-end",
+                    gap: 12, 
+                    alignItems: "center",
                     background: "#f8fafc",
-                    padding: "8px 8px 8px 16px",
-                    borderRadius: "24px",
+                    padding: "6px 6px 6px 18px",
+                    borderRadius: "28px",
                     border: "1px solid #e2e8f0",
-                    transition: "all 0.2s",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.02)"
+                    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.01)"
                 }}>
                     <Input.TextArea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKey}
-                        placeholder="Escribí un mensaje..."
+                        placeholder="Comenzar charla..."
                         autoSize={{ minRows: 1, maxRows: 5 }}
                         variant="borderless"
                         style={{ 
                             padding: "8px 0",
                             fontSize: 14,
-                            color: "#1e293b"
+                            color: "#0f172a"
                         }}
                     />
                     <Button
                         type="primary"
-                        icon={<SendOutlined />}
+                        icon={<SendOutlined style={{ fontSize: 18 }} />}
                         loading={sending}
                         onClick={sendMessage}
                         disabled={!input.trim()}
                         shape="circle"
-                        size="large"
                         style={{ 
-                            width: 42, 
-                            height: 42, 
-                            background: input.trim() ? "linear-gradient(135deg, #7c3aed, #4f46e5)" : "#e2e8f0", 
+                            width: 44, 
+                            height: 44, 
+                            background: input.trim() ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "#f1f5f9", 
                             borderColor: "transparent",
-                            boxShadow: input.trim() ? "0 4px 10px rgba(124,58,237,0.3)" : "none",
+                            boxShadow: input.trim() ? "0 8px 20px rgba(79,70,229,0.3)" : "none",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -297,7 +403,7 @@ interface ChatButtonProps {
 export function ChatFloatingButton({ currentUserId }: ChatButtonProps) {
     const [open, setOpen] = useState(false);
     const [unread, setUnread] = useState(0);
-    const [perSender, setPerSender] = useState<Record<number, number>>({});
+    const [perSender, setPerSender] = useState<Record<string | number, number>>({});
     const [users, setUsers] = useState<any[]>([]);
     const lastUnread = useRef(0);
 

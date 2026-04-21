@@ -11,9 +11,9 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 
 from accounts.views import UserViewSet, SectorMembershipViewSet
 from clients.views import ClientViewSet
-from inventory.views import ProductViewSet, StockMovementViewSet
+from inventory.views import ProductViewSet, StockMovementViewSet, MaterialReservationViewSet, PurchaseRequestViewSet
 from budgets.views import BudgetViewSet, BudgetItemViewSet
-from work_orders.views import WorkOrderViewSet, WorkOrderMaterialViewSet
+from work_orders.views import WorkOrderViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
 from spaces.views import AdSpaceViewSet, SpaceRentalViewSet
 from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
@@ -25,10 +25,11 @@ router.register(r'sector-memberships', SectorMembershipViewSet)
 router.register(r'clients', ClientViewSet)
 router.register(r'products', ProductViewSet)
 router.register(r'stock-movements', StockMovementViewSet)
+router.register(r'material-reservations', MaterialReservationViewSet)
+router.register(r'purchase-requests', PurchaseRequestViewSet)
 router.register(r'budgets', BudgetViewSet)
 router.register(r'budget-items', BudgetItemViewSet)
 router.register(r'work-orders', WorkOrderViewSet)
-router.register(r'work-order-materials', WorkOrderMaterialViewSet)
 router.register(r'sectors', SectorViewSet)
 router.register(r'sector-tasks', SectorTaskViewSet)
 router.register(r'ad-spaces', AdSpaceViewSet)
@@ -39,15 +40,15 @@ router.register(r'employees', EmployeeViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
+
     # Auth
     path('api/v1/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/v1/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
+
     # API
     path('api/v1/', include(router.urls)),
     path('api/v1/', include('chat.urls')),
-    
+
     # Docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

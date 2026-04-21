@@ -15,6 +15,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ["get", "post", "delete", "head", "options"]
+    pagination_class = None
 
     def get_queryset(self):
         """Devuelve mensajes del chat grupal (sin destinatario específico) + conversaciones del usuario."""
@@ -44,6 +45,12 @@ class MessageViewSet(viewsets.ModelViewSet):
             
         qs.update(is_read=True)
         return Response({"ok": True})
+
+    @action(detail=False, methods=["post"], url_path="clear")
+    def clear(self, request):
+        """Simula un vaciado de chat. No borra nada por razones de auditoría."""
+        # No realizamos ninguna acción de borrado físico para mantener la trazabilidad.
+        return Response({"ok": True, "message": "Historial preservado en servidor por auditoría."})
     @action(detail=False, methods=["get"], url_path="unread-count")
     def unread_count(self, request):
         me = request.user

@@ -28,7 +28,9 @@ export default function AuthenticatedLayout({
             </div>
         }
     >
-      <ThemedLayout Title={AppTitle}>{children}</ThemedLayout>
+      <ThemedLayout Title={AppTitle} Header={() => null}>
+        {children}
+      </ThemedLayout>
     </Authenticated>
   );
 }
