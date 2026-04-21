@@ -1,6 +1,7 @@
 "use client";
 
 import { List, useTable, EditButton, DeleteButton } from "@refinedev/antd";
+import { API_URL as API } from "@/config/api";
 import { Table, Space, Tag, Select, message } from "antd";
 import { useCustomMutation, useGetIdentity } from "@refinedev/core";
 
@@ -16,7 +17,7 @@ export default function UserList() {
 
   const handleRoleChange = (userId: number, newRole: string) => {
     mutate({
-      url: `http://localhost:8000/api/v1/users/${userId}/change_role/`,
+      url: `${API}/users/${userId}/change_role/`,
       method: "patch",
       values: { rol: newRole },
     }, {

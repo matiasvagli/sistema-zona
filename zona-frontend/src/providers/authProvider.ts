@@ -1,7 +1,6 @@
 import { AuthProvider } from "@refinedev/core";
 import axios from "axios";
-
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from "@/config/api";
 
 // Cache de identidad para evitar múltiples llamadas en el mismo render cycle
 let _identityCache: { data: any; ts: number } | null = null;

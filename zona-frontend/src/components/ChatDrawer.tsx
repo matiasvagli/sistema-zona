@@ -7,7 +7,7 @@ import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
 const POLL_INTERVAL = 4000; // 4 segundos
 
 interface Message {

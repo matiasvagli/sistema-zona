@@ -14,15 +14,10 @@ import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
+import { BUDGET_STATUS } from "@/constants/statuses";
 
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  borrador:  { color: "default", label: "Borrador"  },
-  aprobado:  { color: "success", label: "Aprobado"  },
-  rechazado: { color: "error",   label: "Rechazado" },
-  facturado: { color: "blue",    label: "Facturado" },
-  vencido:   { color: "error",   label: "Vencido"   },
-};
+const STATUS_CONFIG = BUDGET_STATUS;
 
 export default function BudgetDetailPage() {
   const router = useRouter();
@@ -82,7 +77,7 @@ export default function BudgetDetailPage() {
     return <div style={{ padding: 40 }}><Text type="secondary">Presupuesto no encontrado.</Text></div>;
   }
 
-  const st = STATUS_CONFIG[budget.status] || STATUS_CONFIG.borrador;
+  const st = STATUS_CONFIG[budget.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.borrador;
   const totalAmount = Number(budget.total_amount || 0);
 
   const itemColumns = [

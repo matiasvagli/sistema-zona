@@ -19,7 +19,7 @@ import dayjs from "dayjs";
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
 
 type BudgetItem = {
   key: string;

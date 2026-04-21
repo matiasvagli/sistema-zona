@@ -16,26 +16,16 @@ import { WorkOrderInfoCard } from "@/components/work-orders/WorkOrderInfoCard";
 import { WorkOrderSectors } from "@/components/work-orders/WorkOrderSectors";
 import { WorkOrderMaterials } from "@/components/work-orders/WorkOrderMaterials";
 import { WorkOrderPhotos } from "@/components/work-orders/WorkOrderPhotos";
+import { BillingModal } from "@/components/billing/BillingModal";
 
 dayjs.locale("es");
 
 const { Option } = Select;
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
+import { OT_STATUS, TASK_STATUS } from "@/constants/statuses";
 
-const statusConfig: Record<string, { color: string; label: string }> = {
-  pendiente:  { color: "default",    label: "Pendiente"  },
-  en_proceso: { color: "processing", label: "En Proceso" },
-  pausada:    { color: "warning",    label: "Pausada"    },
-  completada: { color: "success",    label: "Completada" },
-  cancelada:  { color: "error",      label: "Cancelada"  },
-};
-
-const taskStatusConfig: Record<string, { color: string; label: string }> = {
-  pendiente:  { color: "#8c8c8c", label: "Pendiente"  },
-  en_proceso: { color: "#1890ff", label: "En Proceso" },
-  completada: { color: "#52c41a", label: "Completada" },
-  bloqueada:  { color: "#ff4d4f", label: "Bloqueada"  },
-};
+const statusConfig = OT_STATUS;
+const taskStatusConfig = TASK_STATUS;
 
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +53,7 @@ export default function WorkOrderDetail() {
   const fileBeforeRef = useRef<HTMLInputElement>(null);
   const fileAfterRef  = useRef<HTMLInputElement>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState<"before" | "after" | null>(null);
+  const [billingOpen, setBillingOpen] = useState(false);
 
   const { result: sectorsResult } = useList({
     resource: "sectors",
@@ -212,13 +203,17 @@ export default function WorkOrderDetail() {
     } catch { notification.error({ message: "Error al eliminar foto" }); }
   };
 
+  const handleInvoiceOT = async () => {
+    setBillingOpen(true);
+  };
+
   if (loading) return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
   if (!ot) return null;
 
   const tasks: any[] = ot.tasks || [];
   const assignedSectorIds = tasks.map((t: any) => t.sector);
   const availableSectors = allSectors.filter((s) => !assignedSectorIds.includes(s.id));
-  const statusCfg = statusConfig[ot.status] || { color: "default", label: ot.status };
+  const statusCfg = statusConfig[ot.status as keyof typeof statusConfig] ?? { color: "default", label: ot.status };
 
   return (
     <div style={{ padding: "24px", background: "#f0f2f5", minHeight: "100%" }}>
@@ -231,6 +226,7 @@ export default function WorkOrderDetail() {
         setEditFields={setEditFields}
         saveHeader={saveHeader}
         saving={saving}
+        handleInvoice={handleInvoiceOT}
         canEdit={identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin'}
       />
 
@@ -370,6 +366,17 @@ export default function WorkOrderDetail() {
           </div>
         </div>
       </Modal>
+      
+      <BillingModal 
+        open={billingOpen}
+        onClose={() => setBillingOpen(false)}
+        onSuccess={fetchOT}
+        budgetId={ot.budget}
+        workOrderId={ot.id}
+        clientId={ot.client}
+        clientName={ot.client_name}
+        totalAmount={ot.total_amount || 0}
+      />
 
     </div>
   );

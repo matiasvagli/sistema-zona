@@ -1,6 +1,7 @@
 "use client";
 
 import { Edit, useForm } from "@refinedev/antd";
+import { API_URL as API } from "@/config/api";
 import { Form, Input, InputNumber, Checkbox, Table, Button, Space, message, Select, Card } from "antd";
 import { useList, useCustomMutation, useCreate, useDelete } from "@refinedev/core";
 import { useState } from "react";
@@ -46,7 +47,7 @@ export default function SectorEdit({ params }: any) {
 
   const handleUpdatePerm = (membershipId: number, field: string, checked: boolean) => {
     updateMembership({
-      url: `http://localhost:8000/api/v1/sector-memberships/${membershipId}/`,
+      url: `${API}/sector-memberships/${membershipId}/`,
       method: "patch",
       values: { [field]: checked },
     }, {
@@ -98,7 +99,7 @@ export default function SectorEdit({ params }: any) {
             placeholder="Seleccionar Usuario"
             value={selectedUser}
             onChange={setSelectedUser}
-            options={usersData?.data?.map(u => ({ value: u.id, label: u.username })) || []}
+            options={usersData?.data?.map((u: { id: number; username: string }) => ({ value: u.id, label: u.username })) || []}
           />
           <Button type="primary" onClick={handleAddUser} disabled={!selectedUser}>
             Agregar Usuario

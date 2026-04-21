@@ -6,6 +6,7 @@ import { useGetIdentity, useList } from "@refinedev/core";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { ChatFloatingButton } from "@/components/ChatDrawer";
 import { axiosInstance } from "@/utils/axios-instance";
+import { API_URL as API } from "@/config/api";
 import {
   Typography, Row, Col, Card, Button, List, Avatar, Tag,
   Divider, Progress, Spin, Drawer, Tooltip, Empty, Space, Badge, Select,
@@ -38,26 +39,13 @@ const today = new Date().toLocaleDateString("es-AR", {
   weekday: "long", year: "numeric", month: "long", day: "numeric",
 });
 
-const taskStatusConfig: Record<string, { color: string; label: string }> = {
-  pendiente: { color: "default", label: "Pendiente" },
-  en_proceso: { color: "processing", label: "En Proceso" },
-  completada: { color: "success", label: "Completada" },
-  bloqueada: { color: "error", label: "Bloqueada" },
-};
+import { TASK_STATUS, OT_STATUS } from "@/constants/statuses";
+import { calcProgress } from "@/utils/time";
 
-const otStatusColor: Record<string, string> = {
-  pendiente: "#8c8c8c",
-  en_proceso: "#1890ff",
-  pausada: "#faad14",
-  completada: "#52c41a",
-  cancelada: "#ff4d4f",
-};
-
-function calcProgress(tasks: any[]): number {
-  if (!tasks || tasks.length === 0) return 0;
-  const done = tasks.filter((t) => t.status === "completada").length;
-  return Math.round((done / tasks.length) * 100);
-}
+const taskStatusConfig = TASK_STATUS;
+const otStatusColor = Object.fromEntries(
+  Object.entries(OT_STATUS).map(([k, v]) => [k, v.color])
+) as Record<string, string>;
 
 export default function Dashboard() {
   const { data: user, isLoading: userLoading } = useGetIdentity<any>();
@@ -75,7 +63,7 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         // 1. Mensajes no leídos
-        const { data: unreadData } = await axiosInstance.get("http://localhost:8000/api/v1/messages/unread-count/");
+        const { data: unreadData } = await axiosInstance.get(`${API}/messages/unread-count/`);
         const mapping: Record<string, number> = {};
         if (unreadData && unreadData.per_sender) {
           Object.keys(unreadData.per_sender).forEach(key => {
@@ -85,7 +73,7 @@ export default function Dashboard() {
         setUnreadPerSender(mapping);
 
         // 2. Lista de usuarios para el chat (manual)
-        const { data: usersData } = await axiosInstance.get("http://localhost:8000/api/v1/users/");
+        const { data: usersData } = await axiosInstance.get(`${API}/users/`);
         setUsers(usersData.results || usersData);
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
@@ -108,11 +96,11 @@ export default function Dashboard() {
   });
 
   const { result: tasksResult } = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
-  
+
   const { result: clientsResult } = useList({
     resource: "clients",
     pagination: { pageSize: 50 },
-    queryOptions: { 
+    queryOptions: {
       enabled: canViewBudgets && !!user
     }
   });
@@ -129,19 +117,32 @@ export default function Dashboard() {
   const { result: productsResult } = useList({
     resource: "products",
     pagination: { pageSize: 10 },
-    queryOptions: { 
+    queryOptions: {
       enabled: canViewBudgets && !!user
     }
   });
 
   const workOrders: any[] = (otResult?.data || []) as any[];
   const activeOTs = useMemo(() => {
-    let filtered = workOrders.filter((o) => o.status !== "completada" && o.status !== "cancelada");
+    const allTasks = (tasksResult?.data || []) as any[];
+
+    let filtered = workOrders.filter((o) => {
+      // 1. Excluir si el estado ya es completada o cancelada
+      if (o.status === "completada" || o.status === "cancelada") return false;
+
+      // 2. Excluir si está "de facto" terminada (todas sus tareas en 'completada')
+      // Esto evita que aparezca en la Cola de Trabajos si ya debería estar en Historial
+      const tasks = allTasks.filter((t) => t.work_order === o.id);
+      const isFinished = tasks.length > 0 && tasks.every((t) => t.status === "completada");
+
+      return !isFinished;
+    });
+
     if (priorityFilter !== "all") {
       filtered = filtered.filter((o) => o.priority === priorityFilter);
     }
     return filtered;
-  }, [workOrders, priorityFilter]);
+  }, [workOrders, priorityFilter, tasksResult]);
 
   if (userLoading) {
     return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
@@ -387,19 +388,19 @@ export default function Dashboard() {
                       background: #f8fafc !important;
                     }
                   `}</style>
-                  
+
                   {activeOTs.length === 0 ? (
                     <Empty description="No hay órdenes de trabajo activas" image={Empty.PRESENTED_IMAGE_SIMPLE} />
                   ) : (
                     <>
                       {activeOTs.map((ot: any) => {
                         const tasks = (tasksResult?.data || []).filter((t: any) => t.work_order === ot.id);
-                        const progress = calcProgress(tasks);
+                        const progress = calcProgress(tasks as { status: string }[]);
                         const isInmediata = ot.priority === "inmediata";
-                        
+
                         return (
-                          <div 
-                            key={ot.id} 
+                          <div
+                            key={ot.id}
                             className="ot-card"
                             onClick={() => router.push(`/work-orders/${ot.id}`)}
                             style={{
@@ -432,22 +433,22 @@ export default function Dashboard() {
                                   )}
                                 </div>
                               </Col>
-                              
+
                               <Col style={{ width: 140 }}>
                                 <div style={{ marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: progress === 100 ? "#10b981" : "#64748b" }}>{progress}%</span>
                                   <div style={{ display: "flex", gap: 2 }}>
                                     {tasks.slice(0, 4).map((t: any) => (
-                                      <div key={t.id} style={{ 
-                                        width: 6, height: 6, borderRadius: "50%", 
+                                      <div key={t.id} style={{
+                                        width: 6, height: 6, borderRadius: "50%",
                                         background: t.status === "completada" ? "#10b981" : t.status === "en_proceso" ? "#3b82f6" : "#e2e8f0"
                                       }} />
                                     ))}
                                   </div>
                                 </div>
-                                <Progress 
-                                  percent={progress} 
-                                  size="small" 
+                                <Progress
+                                  percent={progress}
+                                  size="small"
                                   strokeColor={progress === 100 ? "#10b981" : "#3b82f6"}
                                   trailColor="#f1f5f9"
                                   showInfo={false}
@@ -686,7 +687,7 @@ export default function Dashboard() {
               <div key={task.id} style={{ background: "#f8fafc", padding: 12, borderRadius: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <Text>{task.sector_name}</Text>
-                  <Tag color={taskStatusConfig[task.status]?.color}>{task.status}</Tag>
+                  <Tag color={taskStatusConfig[task.status as keyof typeof taskStatusConfig]?.color}>{task.status}</Tag>
                 </div>
                 <Progress percent={task.status === "completada" ? 100 : task.status === "en_proceso" ? 50 : 0} size="small" />
               </div>

@@ -1,8 +1,7 @@
 import simpleRestDataProvider from "@refinedev/simple-rest";
 import { axiosInstance } from "../utils/axios-instance";
 import { DataProvider } from "@refinedev/core";
-
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from "@/config/api";
 
 const baseDataProvider = simpleRestDataProvider(API_URL, axiosInstance);
 

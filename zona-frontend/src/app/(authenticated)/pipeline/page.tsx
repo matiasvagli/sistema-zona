@@ -26,39 +26,10 @@ dayjs.locale("es");
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
+import { TASK_STATUS, OT_STATUS, SECTOR_COLORS } from "@/constants/statuses";
+import { timeLeft } from "@/utils/time";
 
-const SECTOR_COLORS = [
-  { light: "#e6f4ff", border: "#1890ff", solid: "#1890ff", dark: "#0958d9" },
-  { light: "#f9f0ff", border: "#722ed1", solid: "#722ed1", dark: "#531dab" },
-  { light: "#fff7e6", border: "#fa8c16", solid: "#fa8c16", dark: "#d46b08" },
-  { light: "#f6ffed", border: "#52c41a", solid: "#52c41a", dark: "#389e0d" },
-  { light: "#fff1f0", border: "#ff4d4f", solid: "#ff4d4f", dark: "#cf1322" },
-  { light: "#e6fffb", border: "#13c2c2", solid: "#13c2c2", dark: "#08979c" },
-];
-
-const TASK_STATUS: Record<string, { color: string; bg: string; label: string; dot: string }> = {
-  pendiente:  { color: "#595959", bg: "#f5f5f5", label: "Pendiente",  dot: "#8c8c8c" },
-  en_proceso: { color: "#003eb3", bg: "#e6f4ff", label: "En proceso", dot: "#1890ff" },
-  completada: { color: "#237804", bg: "#f6ffed", label: "Completada", dot: "#52c41a" },
-  bloqueada:  { color: "#a8071a", bg: "#fff1f0", label: "Bloqueada",  dot: "#ff4d4f" },
-};
-
-const OT_STATUS: Record<string, { color: string; label: string }> = {
-  pendiente:  { color: "#8c8c8c", label: "Pendiente"  },
-  en_proceso: { color: "#1890ff", label: "En proceso" },
-  pausada:    { color: "#fa8c16", label: "Pausada"    },
-  completada: { color: "#52c41a", label: "Completada" },
-  cancelada:  { color: "#ff4d4f", label: "Cancelada"  },
-};
-
-function timeLeft(estimated: string): { text: string; urgent: boolean; overdue: boolean } {
-  const diff = dayjs(estimated).diff(dayjs(), "hour");
-  if (diff < 0) return { text: `Venció hace ${Math.abs(diff)}h`, urgent: true, overdue: true };
-  if (diff < 4) return { text: `${diff}h restantes`, urgent: true, overdue: false };
-  if (diff < 24) return { text: `${diff}h restantes`, urgent: false, overdue: false };
-  return { text: dayjs(estimated).format("DD/MM HH:mm"), urgent: false, overdue: false };
-}
 
 function WOTable({
   wos,
@@ -138,7 +109,7 @@ function WOTable({
             const allTasks = Object.values(woTasks);
             const completedCount = allTasks.filter((t: any) => t.status === "completada").length;
             const otProgress = allTasks.length ? Math.round((completedCount / allTasks.length) * 100) : 0;
-            const otSt = OT_STATUS[wo.status] || OT_STATUS.pendiente;
+            const otSt = OT_STATUS[wo.status as keyof typeof OT_STATUS] ?? OT_STATUS.pendiente;
             const isEven = rowIdx % 2 === 0;
             const isInmediata = wo.priority === "inmediata";
             const hasOverdue = (allTasks as any[]).some((t) =>
@@ -239,7 +210,7 @@ function WOTable({
                     );
                   }
 
-                  const st = TASK_STATUS[task.status] || TASK_STATUS.pendiente;
+                  const st = TASK_STATUS[task.status as keyof typeof TASK_STATUS] ?? TASK_STATUS.pendiente;
                   const isBlocked = task.status === "bloqueada";
                   const tLeft = task.estimated_finish ? timeLeft(task.estimated_finish) : null;
                   const isOverdue = !!(tLeft?.overdue && task.status !== "completada");

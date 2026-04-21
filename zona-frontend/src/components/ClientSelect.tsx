@@ -5,6 +5,7 @@ import { Select, Button, Divider, Space, Modal, Form, Input, notification, Spin 
 import { PlusOutlined } from "@ant-design/icons";
 import { useList } from "@refinedev/core";
 import { axiosInstance } from "@/utils/axios-instance";
+import { API_URL as API } from "@/config/api";
 
 interface ClientSelectProps {
   value?: any;
@@ -28,7 +29,7 @@ export function ClientSelect({ value, onChange, style, size }: ClientSelectProps
   const handleCreate = async (values: any) => {
     setLoading(true);
     try {
-      const { data: newClient } = await axiosInstance.post("http://localhost:8000/api/v1/clients/", values);
+      const { data: newClient } = await axiosInstance.post(`${API}/clients/`, values);
       notification.success({ message: "Cliente creado correctamente" });
       setModalOpen(false);
       form.resetFields();

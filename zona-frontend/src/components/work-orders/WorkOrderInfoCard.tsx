@@ -121,6 +121,12 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
               {ot.due_date ? dayjs(ot.due_date).format("DD/MM/YYYY") : "—"}
             </Text>
           </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Presupuesto</Text>
+            <Text strong style={{ display: "block", marginTop: 4 }}>
+              {ot.budget_title ? <Tag color="blue">{ot.budget_title}</Tag> : <Text type="secondary" style={{ fontSize: 12 }}>Sin vincular</Text>}
+            </Text>
+          </div>
           {ot.notes && (
             <div style={{ width: "100%" }}>
               <Text type="secondary" style={{ fontSize: 12 }}>Notas</Text>

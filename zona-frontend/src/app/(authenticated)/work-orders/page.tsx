@@ -8,21 +8,11 @@ import {
 } from "antd";
 import { PlusOutlined, FireOutlined, ClockCircleOutlined, EyeOutlined, SearchOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { OT_STATUS } from "@/constants/statuses";
+import { calcProgress } from "@/utils/time";
 
 const { Title, Text } = Typography;
-
-const statusConfig: Record<string, { color: string; label: string }> = {
-  pendiente:  { color: "default",    label: "Pendiente"  },
-  en_proceso: { color: "processing", label: "En Proceso" },
-  pausada:    { color: "warning",    label: "Pausada"    },
-  completada: { color: "success",    label: "Completada" },
-  cancelada:  { color: "error",      label: "Cancelada"  },
-};
-
-function calcProgress(tasks: any[]) {
-  if (!tasks?.length) return 0;
-  return Math.round((tasks.filter((t) => t.status === "completada").length / tasks.length) * 100);
-}
+const statusConfig = OT_STATUS;
 
 export default function WorkOrdersPage() {
   const router = useRouter();

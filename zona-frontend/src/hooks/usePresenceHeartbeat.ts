@@ -3,8 +3,9 @@
 import { useEffect, useRef } from "react";
 import { axiosInstance } from "@/utils/axios-instance";
 
-const PING_INTERVAL = 25_000; // 25 segundos
-const API_URL = "http://localhost:8000/api/v1";
+import { API_URL } from "@/config/api";
+
+const PING_INTERVAL = 25_000;
 
 /**
  * Hook que manda un heartbeat al backend cada 25 segundos

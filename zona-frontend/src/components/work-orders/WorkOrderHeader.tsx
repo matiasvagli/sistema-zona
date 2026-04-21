@@ -20,6 +20,7 @@ interface WorkOrderHeaderProps {
   setEditFields: (fields: any) => void;
   saveHeader: () => void;
   saving: boolean;
+  handleInvoice?: () => void;
   canEdit?: boolean;
 }
 
@@ -31,6 +32,7 @@ export const WorkOrderHeader: React.FC<WorkOrderHeaderProps> = ({
   setEditFields,
   saveHeader,
   saving,
+  handleInvoice,
   canEdit = false,
 }) => {
   const router = useRouter();
@@ -86,13 +88,30 @@ export const WorkOrderHeader: React.FC<WorkOrderHeaderProps> = ({
           </Text>
         </div>
         {canEdit && (!editMode ? (
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => setEditMode(true)}
-            style={{ borderRadius: 10, fontWeight: 600 }}
-          >
-            Editar OT
-          </Button>
+          <div style={{ display: "flex", gap: 10 }}>
+            {ot.budget && (
+              <Button
+                type="primary"
+                onClick={handleInvoice}
+                style={{ 
+                  borderRadius: 10, 
+                  fontWeight: 600, 
+                  background: "#3b82f6", 
+                  borderColor: "#3b82f6",
+                  boxShadow: "0 4px 12px rgba(59,130,246,0.3)"
+                }}
+              >
+                Pasar a Facturación
+              </Button>
+            )}
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => setEditMode(true)}
+              style={{ borderRadius: 10, fontWeight: 600 }}
+            >
+              Editar OT
+            </Button>
+          </div>
         ) : (
           <Button
             type="primary"

@@ -3,14 +3,15 @@
 import React, { useState, useMemo } from "react";
 import { useList } from "@refinedev/core";
 import {
-  Table, Tag, Input, DatePicker, Button, Space, Typography, Tooltip, Avatar,
+  Table, Tag, Input, DatePicker, Button, Space, Typography, Tooltip, Avatar, notification,
 } from "antd";
 import { 
   SearchOutlined, EyeOutlined, CalendarOutlined, CheckCircleOutlined, 
-  UserOutlined, RocketOutlined, ClearOutlined
+  UserOutlined, RocketOutlined, ClearOutlined, FileProtectOutlined
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
+import { BillingModal } from "@/components/billing/BillingModal";
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -19,6 +20,9 @@ export function FinishedWorksTab() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
+  const [billingModal, setBillingModal] = useState<{ open: boolean; budgetId: number | null; clientName: string; totalAmount: number }>({
+    open: false, budgetId: null, clientName: "", totalAmount: 0
+  });
 
   // Traer OTs para luego filtrar en memoria las finalizadas
   const { query, result } = useList({
@@ -144,18 +148,45 @@ export function FinishedWorksTab() {
       ),
     },
     {
-      title: "",
+      title: "Acciones",
       key: "actions",
-      width: 60,
+      width: 140,
       render: (_: any, record: any) => (
-        <Tooltip title="Ver detalles de OT">
-          <Button 
-            shape="circle"
-            icon={<EyeOutlined />} 
-            onClick={(e) => { e.stopPropagation(); router.push(`/work-orders/${record.id}`); }} 
-            style={{ color: "#64748b", border: "1px solid #e2e8f0" }}
-          />
-        </Tooltip>
+        <Space onClick={(e) => e.stopPropagation()}>
+          <Tooltip title={record.budget ? "Procesar Facturación" : "Generar Factura (Sin presupuesto)"}>
+            <Button 
+              size="small"
+              icon={<FileProtectOutlined />} 
+              onClick={() => {
+                if (!record.client) {
+                  notification.warning({ message: "Asigna un cliente a la OT para poder facturarla" });
+                  return;
+                }
+                setBillingModal({
+                  open: true,
+                  budgetId: record.budget || null,
+                  workOrderId: record.id,
+                  clientId: record.client,
+                  clientName: record.client_name,
+                  totalAmount: record.total_amount || 0
+                });
+              }} 
+              style={{ 
+                color: record.budget ? "#3b82f6" : "#f59e0b", 
+                background: record.budget ? "#eff6ff" : "#fffbeb", 
+                border: record.budget ? "1px solid #dbeafe" : "1px solid #fef3c7" 
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Ver detalles de OT">
+            <Button 
+              size="small"
+              icon={<EyeOutlined />} 
+              onClick={() => router.push(`/work-orders/${record.id}`)} 
+              style={{ color: "#64748b", border: "1px solid #e2e8f0" }}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
@@ -261,6 +292,15 @@ export function FinishedWorksTab() {
           })}
         />
       </div>
+
+      <BillingModal
+        open={billingModal.open}
+        onClose={() => setBillingModal({ ...billingModal, open: false })}
+        onSuccess={() => query.refetch()}
+        budgetId={billingModal.budgetId || 0}
+        clientName={billingModal.clientName}
+        totalAmount={billingModal.totalAmount}
+      />
     </div>
   );
 }

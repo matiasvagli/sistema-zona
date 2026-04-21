@@ -58,5 +58,11 @@ class BudgetViewSet(viewsets.ModelViewSet):
         )
         budget.work_order = wo
         budget.save(update_fields=['work_order'])
-
         return Response(WorkOrderSerializer(wo).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def invoice(self, request, pk=None):
+        budget = self.get_object()
+        budget.status = Budget.Status.FACTURADO
+        budget.save()
+        return Response(self.get_serializer(budget).data)

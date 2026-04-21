@@ -21,12 +21,12 @@ class WorkOrder(models.Model):
         null=True,
         blank=True
     )
-    budget = models.ForeignKey(
+    budget = models.OneToOneField(
         'budgets.Budget',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='work_orders_linked'
+        related_name='work_order_assigned'
     )
     status = models.CharField(
         max_length=20,

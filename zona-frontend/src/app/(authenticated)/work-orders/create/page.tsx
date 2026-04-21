@@ -21,7 +21,7 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
 
 type PhotoFile = { file: File; preview: string };
 
@@ -114,7 +114,7 @@ export default function WorkOrderCreate() {
   });
 
   const sectors: any[] = sectorsResult?.data || [];
-  const budgets: any[] = budgetsResult?.data || [];
+  const budgets: any[] = (budgetsResult?.data || []).filter((b: any) => !b.work_order);
 
   const onBudgetSelect = (budgetId: number) => {
     const b = budgets.find((x) => x.id === budgetId);

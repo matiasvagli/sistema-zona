@@ -12,7 +12,7 @@ import {
 import { axiosInstance } from "@/utils/axios-instance";
 
 const { Text } = Typography;
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
 
 export default function UserEdit() {
   const { id: userId } = useParams<{ id: string }>();

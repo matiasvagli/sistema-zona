@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Typography, Button, Empty, Tag, Tooltip, Modal, Input, notification } from "antd";
 import { axiosInstance } from "@/utils/axios-instance";
 
-const API = "http://localhost:8000/api/v1";
+import { API_URL as API } from "@/config/api";
 import {
   ToolOutlined, PlusOutlined, PlayCircleOutlined,
   CheckCircleOutlined, StopOutlined, ClockCircleOutlined,

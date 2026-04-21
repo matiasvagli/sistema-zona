@@ -11,8 +11,8 @@ import { authProvider } from "@/providers/authProvider";
 import { dataProvider } from "@/providers/dataProvider";
 import { axiosInstance } from "@/utils/axios-instance";
 
-const API_URL = "http://localhost:8000/api/v1";
-
+import { API_URL } from "@/config/api";
+//cambio de color del panel latera del dashboard para que se note
 export const RefineContext = ({ children }: { children: React.ReactNode }) => {
     return (
         <RefineKbarProvider>
@@ -31,14 +31,14 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                         routerProvider={routerProvider}
                         accessControlProvider={{
                             can: async ({ resource, action }) => {
-                                const user = await authProvider.getIdentity();
+                                const user = (authProvider.getIdentity ? await authProvider.getIdentity() : null) as any;
                                 const rol = user?.rol || 'empleado';
                                 const isAdmin = rol === 'ceo' || rol === 'admin' || user?.is_staff;
 
                                 if (user?.is_superuser || isAdmin) {
                                     return { can: true };
                                 }
-                                
+
                                 // Empleados: SOLO Dashboard, OTs, Pipeline, Sectores y Tareas (solo lectura)
                                 if (rol === 'empleado') {
                                     if (["create", "edit", "delete"].includes(action)) {
