@@ -120,12 +120,12 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                             {
                                 name: "expenses",
                                 list: "/expenses",
-                                meta: { label: "Finanzas" },
+                                meta: { label: "Gastos" },
                             },
                             {
                                 name: "proveedores",
                                 list: "/proveedores",
-                                meta: { label: "Proveedores" },
+                                meta: { label: "Elementos" },
                             },
                             {
                                 name: "users",

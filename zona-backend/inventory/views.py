@@ -18,7 +18,48 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.none()
     serializer_class = ProductSerializer
     search_fields = ('name',)
-    filterset_fields = ('sector',)
+    filterset_fields = ('sector', 'kind')
+
+    def perform_create(self, serializer):
+        kind = serializer.validated_data.get('kind', 'material')
+        initial_qty = serializer.validated_data.get('stock_qty', Decimal('0'))
+
+        if initial_qty > 0:
+            product = serializer.save(stock_qty=Decimal('0'))
+            sm_kwargs = {
+                'product': product,
+                'qty': initial_qty,
+                'reason': "Stock inicial",
+                'created_by': self.request.user,
+            }
+            raw = self.request.data.get('purchase_total')
+            if raw:
+                try:
+                    total = Decimal(str(raw))
+                    if total > 0:
+                        if kind in ('insumo', 'herramienta'):
+                            from finanzas.models import Expense
+                            Expense.objects.create(
+                                category=kind,
+                                description=f"Compra inicial — {product.name}",
+                                amount=total,
+                                date=timezone.now().date(),
+                                registered_by=self.request.user,
+                            )
+                        else:  # material: calcular precio unitario para promedio ponderado
+                            sm_kwargs['purchase_price'] = total / initial_qty
+                except Exception:
+                    pass
+            StockMovement.objects.create(**sm_kwargs)
+        else:
+            serializer.save(unit_price=None)
+
+    def perform_update(self, serializer):
+        if serializer.instance.kind == 'material':
+            # Preservar unit_price existente — no pisar con lo que mande el form
+            serializer.save(unit_price=serializer.instance.unit_price)
+        else:
+            serializer.save()
 
     def get_queryset(self):
         qs = Product.objects.select_related('sector').annotate(
@@ -37,9 +78,9 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class StockMovementViewSet(viewsets.ModelViewSet):
-    queryset = StockMovement.objects.all()
+    queryset = StockMovement.objects.select_related('product', 'created_by').all()
     serializer_class = StockMovementSerializer
-    filterset_fields = ('product',)
+    filterset_fields = ('product', 'product__kind')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -53,7 +94,27 @@ class StockMovementViewSet(viewsets.ModelViewSet):
                 sector_ids.add(user.sector_id)
             if product.sector_id and product.sector_id not in sector_ids:
                 raise ValidationError({"product": "No tenés acceso a este producto."})
-        serializer.save(created_by=user)
+
+        instance = serializer.save(created_by=user)
+
+        # Insumo/herramienta entries auto-generate an Expense using the total cost
+        if instance.qty > 0 and instance.product.kind in ('insumo', 'herramienta'):
+            from decimal import Decimal, InvalidOperation
+            from finanzas.models import Expense
+            raw = self.request.data.get('total_cost')
+            if raw:
+                try:
+                    total_cost = Decimal(str(raw))
+                    if total_cost > 0:
+                        Expense.objects.create(
+                            category=instance.product.kind,
+                            description=f"{instance.reason or 'Compra'} — {instance.product.name}",
+                            amount=total_cost,
+                            date=timezone.now().date(),
+                            registered_by=user,
+                        )
+                except (InvalidOperation, ValueError):
+                    pass
 
 
 class MaterialReservationViewSet(viewsets.ModelViewSet):

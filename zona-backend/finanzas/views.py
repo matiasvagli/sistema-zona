@@ -34,7 +34,62 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         if not _is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
-        return super().create(request, *args, **kwargs)
+
+        insumo_product_id      = request.data.get('insumo_product_id')
+        insumo_name            = (request.data.get('insumo_name') or '').strip()
+        insumo_unit            = request.data.get('insumo_unit') or 'unidad'
+        insumo_qty_raw         = request.data.get('insumo_qty')
+
+        herramienta_product_id = request.data.get('herramienta_product_id')
+        herramienta_name       = (request.data.get('herramienta_name') or '').strip()
+        herramienta_serial     = (request.data.get('herramienta_serial') or '').strip()
+        herramienta_qty_raw    = request.data.get('herramienta_qty')
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        expense = serializer.save(registered_by=request.user)
+
+        from inventory.models import Product, StockMovement
+        from decimal import Decimal, InvalidOperation
+
+        def _parse_qty(raw):
+            try:
+                qty = Decimal(str(raw))
+                return qty if qty > 0 else None
+            except (InvalidOperation, TypeError, ValueError):
+                return None
+
+        if insumo_qty_raw and (qty := _parse_qty(insumo_qty_raw)):
+            product = None
+            if insumo_product_id:
+                product = Product.objects.filter(pk=insumo_product_id, kind='insumo').first()
+            elif insumo_name:
+                product = Product.objects.create(name=insumo_name, unit=insumo_unit, kind='insumo')
+            if product:
+                StockMovement.objects.create(
+                    product=product, qty=qty,
+                    reason=f"Compra — gasto #{expense.id}",
+                    created_by=request.user,
+                )
+
+        if herramienta_qty_raw and (qty := _parse_qty(herramienta_qty_raw)):
+            product = None
+            if herramienta_product_id:
+                product = Product.objects.filter(pk=herramienta_product_id, kind='herramienta').first()
+            elif herramienta_name:
+                product = Product.objects.create(
+                    name=herramienta_name, unit='unidad', kind='herramienta',
+                    serial_number=herramienta_serial,
+                )
+            if product:
+                StockMovement.objects.create(
+                    product=product, qty=qty,
+                    reason=f"Compra — gasto #{expense.id}",
+                    created_by=request.user,
+                )
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
         if not _is_admin(request.user):

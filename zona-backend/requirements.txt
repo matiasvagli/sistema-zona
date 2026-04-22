@@ -8,3 +8,5 @@ python-decouple
 Pillow
 drf-spectacular
 dj-database-url
+gunicorn
+whitenoise

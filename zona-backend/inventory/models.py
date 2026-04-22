@@ -11,7 +11,21 @@ def product_image_path(instance, filename):
 
 
 class Product(models.Model):
+    class Kind(models.TextChoices):
+        MATERIAL    = 'material',    'Material de producción'
+        INSUMO      = 'insumo',      'Insumo'
+        HERRAMIENTA = 'herramienta', 'Herramienta'
+
+    class AssetStatus(models.TextChoices):
+        ACTIVA        = 'activa',        'Activa'
+        EN_REPARACION = 'en_reparacion', 'En reparación'
+        BAJA          = 'baja',          'Baja'
+
     name = models.CharField(max_length=255)
+    kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.MATERIAL,
+        help_text="material = producción (OTs), insumo = consumible, herramienta = activo patrimonial"
+    )
     unit = models.CharField(max_length=50, help_text="metros, unidades, kg, etc.")
     stock_qty = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     alert_qty = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="stock mínimo para alerta")
@@ -27,6 +41,11 @@ class Product(models.Model):
         blank=True,
         related_name='products',
         help_text="Null = producto compartido/global disponible para todos los sectores"
+    )
+    # Solo para herramientas
+    serial_number = models.CharField(max_length=100, blank=True)
+    asset_status  = models.CharField(
+        max_length=20, choices=AssetStatus.choices, default=AssetStatus.ACTIVA, blank=True
     )
 
     def __str__(self):

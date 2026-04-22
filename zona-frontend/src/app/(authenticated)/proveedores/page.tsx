@@ -13,7 +13,7 @@ import {
   CheckCircleOutlined, ClockCircleOutlined,
   ShopOutlined, FileTextOutlined, UploadOutlined,
   CalendarOutlined, DollarOutlined, LinkOutlined,
-  WarningOutlined,
+  WarningOutlined, ShoppingOutlined, ToolOutlined, TagOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -55,12 +55,53 @@ interface SupplierInvoice {
 const fmtARS = (v: number | string) =>
   `$${Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
 
+interface StockEntry {
+  id: number;
+  product: number;
+  product_name: string;
+  product_kind: string;
+  product_unit: string;
+  qty: string;
+  reason: string;
+  purchase_price: string | null;
+  created_by_name: string;
+  created_at: string;
+}
+
+const INV_CAT: Record<string, { color: string; label: string; icon: React.ReactNode; bg: string }> = {
+  insumo:      { color: "#1677ff", label: "Insumo",      icon: <ShoppingOutlined />, bg: "#e6f4ff" },
+  herramienta: { color: "#ea580c", label: "Herramienta", icon: <ToolOutlined />,     bg: "#fff7ed" },
+};
+
 export default function ProveedoresPage() {
   const { data: identity } = useGetIdentity<any>();
   const isAdmin = !!(identity?.rol === "admin" || identity?.rol === "ceo" || identity?.is_staff);
 
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // ── Entradas de stock de insumos y herramientas ───────────
+  const { result: insumoMovResult } = useList<StockEntry>({
+    resource: "stock-movements",
+    filters: [{ field: "product__kind", operator: "eq", value: "insumo" }],
+    pagination: { pageSize: 500 },
+    queryOptions: { queryKey: ["stock-entries-insumo", refreshKey] },
+  });
+  const { result: herramMovResult } = useList<StockEntry>({
+    resource: "stock-movements",
+    filters: [{ field: "product__kind", operator: "eq", value: "herramienta" }],
+    pagination: { pageSize: 500 },
+    queryOptions: { queryKey: ["stock-entries-herramienta", refreshKey] },
+  });
+  const stockEntries: StockEntry[] = [
+    ...(insumoMovResult?.data ?? []),
+    ...(herramMovResult?.data ?? []),
+  ].filter((m) => parseFloat(m.qty) > 0)
+   .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const invTotal = stockEntries.reduce((acc, m) => {
+    const total = m.purchase_price ? parseFloat(m.qty) * parseFloat(m.purchase_price) : 0;
+    return acc + total;
+  }, 0);
 
   // ── Proveedores ────────────────────────────────────────────
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; editing: Supplier | null }>({ open: false, editing: null });
@@ -404,9 +445,9 @@ export default function ProveedoresPage() {
             <ShopOutlined />
           </div>
           <div>
-            <Title level={2} style={{ color: "#fff", margin: 0, fontWeight: 800 }}>Proveedores</Title>
+            <Title level={2} style={{ color: "#fff", margin: 0, fontWeight: 800 }}>Elementos</Title>
             <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
-              Gestión de proveedores y facturas pendientes de pago
+              Proveedores, facturas e insumos / herramientas comprados
             </Text>
           </div>
         </div>
@@ -478,6 +519,88 @@ export default function ProveedoresPage() {
                   loading={invoicesQuery.isLoading}
                   size="middle"
                   pagination={{ pageSize: 50, showTotal: (t) => `${t} facturas` }}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: "gastos-inventario",
+            label: <span><TagOutlined style={{ marginRight: 6 }} />Entradas de inventario ({stockEntries.length})</span>,
+            children: (
+              <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }} styles={{ body: { padding: 0 } }}>
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    Ingresos de stock de insumos y herramientas — todos los orígenes
+                  </Text>
+                  {invTotal > 0 && (
+                    <span style={{ marginLeft: "auto", fontWeight: 700, color: "#dc2626", fontSize: 14 }}>
+                      Costo total: {fmtARS(invTotal)}
+                    </span>
+                  )}
+                </div>
+                <Table
+                  dataSource={stockEntries}
+                  rowKey="id"
+                  size="middle"
+                  pagination={{ pageSize: 50, showTotal: (t) => `${t} entradas` }}
+                  columns={[
+                    {
+                      title: "Fecha", dataIndex: "created_at", key: "created_at", width: 120,
+                      render: (d: string) => (
+                        <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
+                          <CalendarOutlined style={{ color: "#94a3b8" }} />
+                          {dayjs(d).format("DD/MM/YYYY")}
+                        </span>
+                      ),
+                      defaultSortOrder: "descend" as const,
+                    },
+                    {
+                      title: "Tipo", dataIndex: "product_kind", key: "product_kind", width: 130,
+                      render: (kind: string) => {
+                        const cfg = INV_CAT[kind];
+                        if (!cfg) return <Tag>{kind}</Tag>;
+                        return (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            background: cfg.bg, color: cfg.color, fontWeight: 600,
+                            fontSize: 12, padding: "3px 10px", borderRadius: 20,
+                          }}>
+                            {cfg.icon} {cfg.label}
+                          </span>
+                        );
+                      },
+                    },
+                    {
+                      title: "Elemento", dataIndex: "product_name", key: "product_name",
+                      render: (v: string) => <span style={{ fontSize: 13, fontWeight: 600 }}>{v}</span>,
+                    },
+                    {
+                      title: "Cantidad", key: "qty", width: 110,
+                      render: (_: any, r: StockEntry) => (
+                        <span style={{ fontSize: 13 }}>
+                          {parseFloat(r.qty).toLocaleString("es-AR")} {r.product_unit}
+                        </span>
+                      ),
+                    },
+                    {
+                      title: "Precio unit.", dataIndex: "purchase_price", key: "purchase_price", width: 120,
+                      render: (p: string | null) => p
+                        ? <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmtARS(parseFloat(p))}</span>
+                        : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
+                    },
+                    {
+                      title: "Total", key: "total", width: 130,
+                      render: (_: any, r: StockEntry) => {
+                        if (!r.purchase_price) return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
+                        const total = parseFloat(r.qty) * parseFloat(r.purchase_price);
+                        return <span style={{ fontWeight: 700, color: "#dc2626", fontVariantNumeric: "tabular-nums", fontSize: 13 }}>{fmtARS(total)}</span>;
+                      },
+                    },
+                    {
+                      title: "Origen", dataIndex: "reason", key: "reason",
+                      render: (v: string) => <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text>,
+                    },
+                  ]}
                 />
               </Card>
             ),

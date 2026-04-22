@@ -13,7 +13,7 @@ import {
   ShoppingCartOutlined, SwapOutlined, ReloadOutlined,
   ExclamationCircleOutlined, AppstoreOutlined, AuditOutlined,
   ShoppingOutlined, CheckCircleOutlined, StopOutlined,
-  BarsOutlined, FilterOutlined
+  BarsOutlined, FilterOutlined, ToolOutlined, CoffeeOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -47,6 +47,7 @@ export default function InventarioPage() {
   const [activeTab, setActiveTab] = useState("catalogo");
 
   // Catálogo state
+  const [kindFilter, setKindFilter] = useState<"material" | "insumo" | "herramienta">("material");
   const [search, setSearch] = useState("");
   const [sectorFilter, setSectorFilter] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
@@ -124,10 +125,11 @@ export default function InventarioPage() {
 
   // Filtered products
   const filteredProducts = allProducts.filter((p) => {
+    const matchKind = (p.kind ?? "material") === kindFilter;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
     const matchSector = !sectorFilter || p.sector === sectorFilter;
     const matchLowStock = !showLowStockOnly || p.stock_bajo;
-    return matchSearch && matchSector && matchLowStock;
+    return matchKind && matchSearch && matchSector && matchLowStock;
   });
 
   // Group by sector
@@ -145,17 +147,21 @@ export default function InventarioPage() {
   // ── Producto CRUD ──────────────────────────────────────────────────────
   const openAddModal = () => {
     productForm.resetFields();
+    productForm.setFieldValue("kind", kindFilter);
     setProductModal({ open: true, editing: null });
   };
 
   const openEditModal = (product: any) => {
     productForm.setFieldsValue({
       name: product.name,
+      kind: product.kind ?? "material",
       unit: product.unit,
       stock_qty: product.stock_qty,
       alert_qty: product.alert_qty,
       sector: product.sector ?? undefined,
       unit_price: product.unit_price ?? undefined,
+      serial_number: product.serial_number ?? "",
+      asset_status: product.asset_status ?? "activa",
     });
     setProductModal({ open: true, editing: product });
   };
@@ -268,15 +274,22 @@ export default function InventarioPage() {
     try {
       const values = await receiveForm.validateFields();
       setSavingReceive(true);
-      const unitPrice = isAdmin && values.purchase_total && values.qty
-        ? values.purchase_total / values.qty
-        : null;
-      await axiosInstance.post(`${API}/stock-movements/`, {
+      const kind = receiveModal.product?.kind;
+      const payload: Record<string, any> = {
         product: receiveModal.product.id,
         qty: values.qty,
         reason: values.reason || "Ingreso de stock",
-        ...(unitPrice != null ? { purchase_price: unitPrice } : {}),
-      });
+      };
+      if (isAdmin && values.purchase_total) {
+        if (kind === "material") {
+          // Para materiales: precio unitario actualiza el promedio ponderado
+          payload.purchase_price = values.purchase_total / values.qty;
+        } else {
+          // Para insumos/herramientas: solo el total para el gasto
+          payload.total_cost = values.purchase_total;
+        }
+      }
+      await axiosInstance.post(`${API}/stock-movements/`, payload);
       notification.success({ message: "Stock actualizado correctamente" });
       setReceiveModal({ open: false, product: null });
       receiveForm.resetFields();
@@ -453,28 +466,47 @@ export default function InventarioPage() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Botones Recibir / Pedir */}
-        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-          <Button
-            type="primary"
-            size="small"
-            icon={<InboxOutlined />}
-            onClick={() => { setReceiveModal({ open: true, product }); receiveForm.resetFields(); }}
-            style={{ flex: 1, borderRadius: 6, background: "#1677ff", fontSize: 12 }}
-          >
-            Recibir
-          </Button>
-          <Tooltip title="Pedirle al admin que compre más stock">
+        {/* Botones — solo para material e insumo */}
+        {product.kind !== "herramienta" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
             <Button
-              size="small"
-              icon={<ShoppingCartOutlined />}
-              onClick={() => { setPurchaseReqModal({ open: true, product }); purchaseReqForm.resetFields(); }}
-              style={{ flex: 1, borderRadius: 6, color: "#fa8c16", borderColor: "#ffd591", background: "#fff7e6", fontSize: 12 }}
+              type="primary" size="small" icon={<InboxOutlined />}
+              onClick={() => { setReceiveModal({ open: true, product }); receiveForm.resetFields(); }}
+              style={{ flex: 1, borderRadius: 6, background: "#1677ff", fontSize: 12 }}
             >
-              Pedir
+              Recibir
             </Button>
-          </Tooltip>
-        </div>
+            <Tooltip title="Pedirle al admin que compre más stock">
+              <Button
+                size="small" icon={<ShoppingCartOutlined />}
+                onClick={() => { setPurchaseReqModal({ open: true, product }); purchaseReqForm.resetFields(); }}
+                style={{ flex: 1, borderRadius: 6, color: "#fa8c16", borderColor: "#ffd591", background: "#fff7e6", fontSize: 12 }}
+              >
+                Pedir
+              </Button>
+            </Tooltip>
+          </div>
+        )}
+
+        {/* Herramienta: serial + estado */}
+        {product.kind === "herramienta" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+            {product.serial_number && (
+              <div style={{ fontSize: 11, color: "#64748b" }}>
+                <ToolOutlined style={{ marginRight: 4 }} />Serie: <strong>{product.serial_number}</strong>
+              </div>
+            )}
+            <div style={{ fontSize: 11 }}>
+              <span style={{
+                padding: "2px 8px", borderRadius: 10, fontWeight: 600,
+                background: product.asset_status === "activa" ? "#f6ffed" : product.asset_status === "en_reparacion" ? "#fff7e6" : "#fff1f0",
+                color: product.asset_status === "activa" ? "#237804" : product.asset_status === "en_reparacion" ? "#d46b08" : "#a8071a",
+              }}>
+                {product.asset_status === "activa" ? "Activa" : product.asset_status === "en_reparacion" ? "En reparación" : "Baja"}
+              </span>
+            </div>
+          </div>
+        )}
 
 
       </div>
@@ -722,6 +754,31 @@ export default function InventarioPage() {
             ),
             children: (
               <div>
+                {/* Kind filter */}
+                <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                  {([
+                    { key: "material",    label: "Materiales",   icon: <AppstoreOutlined /> },
+                    { key: "insumo",      label: "Insumos",      icon: <CoffeeOutlined /> },
+                    { key: "herramienta", label: "Herramientas", icon: <ToolOutlined /> },
+                  ] as const).map(({ key, label, icon }) => (
+                    <button
+                      key={key}
+                      onClick={() => { setKindFilter(key); setSearch(""); setSectorFilter(null); setShowLowStockOnly(false); }}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "7px 16px", borderRadius: 20, cursor: "pointer",
+                        border: kindFilter === key ? "2px solid #1677ff" : "1.5px solid #e2e8f0",
+                        background: kindFilter === key ? "#e6f4ff" : "#fff",
+                        color: kindFilter === key ? "#1677ff" : "#64748b",
+                        fontWeight: kindFilter === key ? 700 : 500,
+                        fontSize: 13, transition: "all 0.18s",
+                      }}
+                    >
+                      {icon} {label}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
                   <Search
                     placeholder="Buscar producto..."
@@ -1123,9 +1180,22 @@ export default function InventarioPage() {
         destroyOnClose
       >
         <Form form={productForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Nombre" rules={[{ required: true, message: "Ingresá el nombre" }]}>
-            <Input placeholder="Ej: Lona vinílica, Perfil de aluminio..." size="large" />
-          </Form.Item>
+          <Row gutter={12}>
+            <Col span={16}>
+              <Form.Item name="name" label="Nombre" rules={[{ required: true, message: "Ingresá el nombre" }]}>
+                <Input placeholder="Ej: Lona vinílica, Taladro Bosch..." size="large" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="kind" label="Tipo" initialValue="material">
+                <Select size="large" options={[
+                  { value: "material",    label: "Material" },
+                  { value: "insumo",      label: "Insumo" },
+                  { value: "herramienta", label: "Herramienta" },
+                ]} />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Row gutter={12}>
             <Col span={12}>
@@ -1148,32 +1218,95 @@ export default function InventarioPage() {
             </Col>
           </Row>
 
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="stock_qty" label="Stock actual" initialValue={0}>
-                <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="alert_qty" label="Alerta mínima" initialValue={0} tooltip="Se mostrará advertencia cuando el stock baje de este valor">
-                <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          {isAdmin && (
-            <Form.Item
-              name="unit_price"
-              label="Precio de costo de referencia"
-              tooltip="Se recalcula automáticamente con promedio ponderado cada vez que se registra un ingreso con precio. Podés setearlo manualmente acá."
-            >
-              <InputNumber
-                min={0} step={0.01} prefix="$"
-                style={{ width: "100%" }} size="large"
-                placeholder="0.00"
-              />
-            </Form.Item>
-          )}
+          <Form.Item noStyle shouldUpdate={(prev, cur) => prev.kind !== cur.kind}>
+            {({ getFieldValue }) => {
+              const kind = getFieldValue("kind");
+              if (kind === "material") return (
+                <>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item name="stock_qty" label="Stock actual" initialValue={0}>
+                        <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="alert_qty" label="Alerta mínima" initialValue={0}>
+                        <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  {isAdmin && !productModal.editing && (
+                    <Form.Item
+                      name="purchase_total"
+                      label="Precio total del stock inicial (opcional)"
+                      tooltip="Si ya sabés cuánto pagaste por ese stock, ingresalo para inicializar el precio promedio. El sistema divide por la cantidad y lo usa como base para futuros promedios."
+                    >
+                      <InputNumber min={0} step={100} prefix="$" style={{ width: "100%" }} size="large" placeholder="ej: 5000 si compraste 5m a $1000/m" />
+                    </Form.Item>
+                  )}
+                  <div style={{ background: "#f0f9ff", border: "1px solid #bae0ff", borderRadius: 8, padding: "8px 12px", marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: "#0369a1" }}>
+                      El precio de costo por unidad se calcula automáticamente con cada ingreso de stock con precio.
+                    </Text>
+                  </div>
+                </>
+              );
+              if (kind === "insumo") return (
+                <>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item name="stock_qty" label="Stock inicial" initialValue={0}
+                        tooltip="Cantidad que tenés en este momento. Queda registrado como ingreso de stock.">
+                        <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="alert_qty" label="Alerta mínima" initialValue={0}>
+                        <InputNumber min={0} step={0.5} style={{ width: "100%" }} size="large" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  {isAdmin && (
+                    <Form.Item name="purchase_total" label="Costo total pagado (opcional)"
+                      tooltip="Lo que gastaste en total. Se registra automáticamente como gasto operativo.">
+                      <InputNumber min={0} step={100} prefix="$" style={{ width: "100%" }} size="large" placeholder="0.00" />
+                    </Form.Item>
+                  )}
+                </>
+              );
+              if (kind === "herramienta") return (
+                <>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item name="stock_qty" label="Cantidad" initialValue={1}
+                        tooltip="Cuántas unidades de esta herramienta tenés.">
+                        <InputNumber min={0} step={1} style={{ width: "100%" }} size="large" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="asset_status" label="Estado" initialValue="activa">
+                        <Select size="large" options={[
+                          { value: "activa",        label: "Activa" },
+                          { value: "en_reparacion", label: "En reparación" },
+                          { value: "baja",          label: "Baja" },
+                        ]} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item name="serial_number" label="Número de serie (opcional)">
+                    <Input placeholder="SN-12345..." size="large" prefix={<ToolOutlined style={{ color: "#94a3b8" }} />} />
+                  </Form.Item>
+                  {isAdmin && (
+                    <Form.Item name="purchase_total" label="Precio de compra (opcional)"
+                      tooltip="Total pagado. Se registra automáticamente como gasto operativo.">
+                      <InputNumber min={0} step={100} prefix="$" style={{ width: "100%" }} size="large" placeholder="0.00" />
+                    </Form.Item>
+                  )}
+                </>
+              );
+              return null;
+            }}
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1328,8 +1461,12 @@ export default function InventarioPage() {
             <>
               <Form.Item
                 name="purchase_total"
-                label="Precio total pagado (factura)"
-                tooltip="Total que pagaste por todo el lote. El sistema calcula el precio por unidad solo."
+                label={receiveModal.product?.kind === "material"
+                  ? "Precio total pagado (factura)"
+                  : "Costo total gastado (opcional)"}
+                tooltip={receiveModal.product?.kind === "material"
+                  ? "Total que pagaste por el lote. El sistema calcula el precio por unidad y actualiza el costo promedio."
+                  : "Total que gastaste. Se registra automáticamente como gasto operativo."}
               >
                 <InputNumber
                   min={0} step={100} prefix="$"
@@ -1338,10 +1475,17 @@ export default function InventarioPage() {
                   onChange={(v) => setRecvTotalVal(v as number | null)}
                 />
               </Form.Item>
-              {recvQtyVal && recvTotalVal && recvQtyVal > 0 && (
+              {receiveModal.product?.kind === "material" && recvQtyVal && recvTotalVal && recvQtyVal > 0 && (
                 <div style={{ marginTop: -12, marginBottom: 16, padding: "6px 12px", background: "#f0f9ff", borderRadius: 6, border: "1px solid #bae0ff" }}>
                   <Text style={{ fontSize: 12, color: "#0958d9" }}>
                     = <strong>${(recvTotalVal / recvQtyVal).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong> por {receiveModal.product?.unit}
+                  </Text>
+                </div>
+              )}
+              {receiveModal.product?.kind !== "material" && recvTotalVal && recvTotalVal > 0 && (
+                <div style={{ marginTop: -12, marginBottom: 16, padding: "6px 12px", background: "#fff7ed", borderRadius: 6, border: "1px solid #fed7aa" }}>
+                  <Text style={{ fontSize: 12, color: "#c2410c" }}>
+                    Se generará un gasto de <strong>${recvTotalVal.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</strong> automáticamente
                   </Text>
                 </div>
               )}

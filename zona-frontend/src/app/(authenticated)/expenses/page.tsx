@@ -12,7 +12,7 @@ import {
   DollarOutlined, ShoppingOutlined, HomeOutlined,
   FilterOutlined, ReloadOutlined, CalendarOutlined,
   FileTextOutlined, BankOutlined, TagOutlined,
-  UserOutlined, LinkOutlined, CheckCircleOutlined,
+  UserOutlined, LinkOutlined, CheckCircleOutlined, ToolOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -22,7 +22,7 @@ import type { Dayjs } from "dayjs";
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-type ExpenseCategory = "insumo" | "servicio" | "alquiler" | "otro";
+type ExpenseCategory = "insumo" | "herramienta" | "servicio" | "alquiler" | "otro";
 
 interface Expense {
   id: number;
@@ -38,11 +38,14 @@ interface Expense {
 }
 
 const CAT_CONFIG: Record<ExpenseCategory, { color: string; label: string; bg: string; icon: React.ReactNode; solid: string }> = {
-  insumo:   { color: "#1677ff", label: "Insumo",   bg: "#e6f4ff", icon: <ShoppingOutlined />,  solid: "#1677ff" },
-  servicio: { color: "#7c3aed", label: "Servicio", bg: "#f3e8ff", icon: <FileTextOutlined />,  solid: "#7c3aed" },
-  alquiler: { color: "#d97706", label: "Alquiler", bg: "#fffbeb", icon: <HomeOutlined />,       solid: "#d97706" },
-  otro:     { color: "#64748b", label: "Otro",     bg: "#f1f5f9", icon: <TagOutlined />,        solid: "#64748b" },
+  insumo:      { color: "#1677ff", label: "Insumo",      bg: "#e6f4ff", icon: <ShoppingOutlined />, solid: "#1677ff" },
+  herramienta: { color: "#ea580c", label: "Herramienta", bg: "#fff7ed", icon: <ToolOutlined />,     solid: "#ea580c" },
+  servicio:    { color: "#7c3aed", label: "Servicio",    bg: "#f3e8ff", icon: <FileTextOutlined />, solid: "#7c3aed" },
+  alquiler:    { color: "#d97706", label: "Alquiler",    bg: "#fffbeb", icon: <HomeOutlined />,      solid: "#d97706" },
+  otro:        { color: "#64748b", label: "Otro",        bg: "#f1f5f9", icon: <TagOutlined />,       solid: "#64748b" },
 };
+
+const COMMON_UNITS = ["unidad", "caja", "resma", "hoja", "rollo", "kg", "L", "par", "set"];
 
 export default function FinanzasPage() {
   const { data: identity } = useGetIdentity<any>();
@@ -50,12 +53,45 @@ export default function FinanzasPage() {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [catFilter, setCatFilter] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<Dayjs | null>(dayjs());
   const [modal, setModal] = useState<{ open: boolean; editing: Expense | null }>({ open: false, editing: null });
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
+  // Insumo stock state
+  const [insumoMode, setInsumoMode] = useState<"existing" | "new">("existing");
+  const [insumoProductId, setInsumoProductId] = useState<number | null>(null);
+  const [insumoName, setInsumoName] = useState("");
+  const [insumoUnit, setInsumoUnit] = useState("unidad");
+  const [insumoQty, setInsumoQty] = useState<number | null>(null);
+
+  // Herramienta stock state
+  const [herramientaMode, setHerramientaMode] = useState<"existing" | "new">("existing");
+  const [herramientaProductId, setHerramientaProductId] = useState<number | null>(null);
+  const [herramientaName, setHerramientaName] = useState("");
+  const [herramientaSerial, setHerramientaSerial] = useState("");
+  const [herramientaQty, setHerramientaQty] = useState<number>(1);
+
+  // Watch category to show stock section automatically
+  const watchedCategory = Form.useWatch("category", form);
+
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  const { result: insumosResult } = useList<{ id: number; name: string; unit: string; stock_qty: string }>({
+    resource: "products",
+    filters: [{ field: "kind", operator: "eq", value: "insumo" }],
+    pagination: { pageSize: 500 },
+    queryOptions: { queryKey: ["insumo-products", refreshKey] },
+  });
+  const insumoProducts = insumosResult?.data ?? [];
+
+  const { result: herramientasResult } = useList<{ id: number; name: string; unit: string; stock_qty: string; serial_number: string }>({
+    resource: "products",
+    filters: [{ field: "kind", operator: "eq", value: "herramienta" }],
+    pagination: { pageSize: 500 },
+    queryOptions: { queryKey: ["herramienta-products", refreshKey] },
+  });
+  const herramientaProducts = herramientasResult?.data ?? [];
 
   const { result: expensesResult, query: expensesQuery } = useList<Expense>({
     resource: "expenses",
@@ -65,29 +101,33 @@ export default function FinanzasPage() {
   });
 
   const allExpenses: Expense[] = expensesResult?.data ?? [];
-  const expenses: Expense[] = dateRange
+  const expenses: Expense[] = selectedMonth
     ? allExpenses.filter((e) => {
         const d = dayjs(e.date);
-        return (d.isAfter(dateRange[0].subtract(1, "day")) && d.isBefore(dateRange[1].add(1, "day")));
+        return d.format("YYYY-MM") === selectedMonth.format("YYYY-MM");
       })
     : allExpenses;
-  const totalAmount = expenses.reduce((acc: number, e: Expense) => acc + parseFloat(e.amount), 0);
-  const insumos    = expenses.filter((e) => e.category === "insumo").reduce((a, e) => a + parseFloat(e.amount), 0);
-  const servicios  = expenses.filter((e) => e.category === "servicio").reduce((a, e) => a + parseFloat(e.amount), 0);
-  const alquiler   = expenses.filter((e) => e.category === "alquiler").reduce((a, e) => a + parseFloat(e.amount), 0);
+
+  const totalAmount   = expenses.reduce((a, e) => a + parseFloat(e.amount), 0);
+  const insumos       = expenses.filter((e) => e.category === "insumo").reduce((a, e) => a + parseFloat(e.amount), 0);
+  const herramientas  = expenses.filter((e) => e.category === "herramienta").reduce((a, e) => a + parseFloat(e.amount), 0);
+  const servicios     = expenses.filter((e) => e.category === "servicio").reduce((a, e) => a + parseFloat(e.amount), 0);
+  const alquiler      = expenses.filter((e) => e.category === "alquiler").reduce((a, e) => a + parseFloat(e.amount), 0);
+
+  const resetStockSection = () => {
+    setInsumoMode("existing"); setInsumoProductId(null); setInsumoName(""); setInsumoUnit("unidad"); setInsumoQty(null);
+    setHerramientaMode("existing"); setHerramientaProductId(null); setHerramientaName(""); setHerramientaSerial(""); setHerramientaQty(1);
+  };
 
   const openCreate = () => {
     form.resetFields();
     form.setFieldValue("date", dayjs());
+    resetStockSection();
     setModal({ open: true, editing: null });
   };
 
   const openEdit = (record: Expense) => {
-    form.setFieldsValue({
-      ...record,
-      amount: parseFloat(record.amount),
-      date: dayjs(record.date),
-    });
+    form.setFieldsValue({ ...record, amount: parseFloat(record.amount), date: dayjs(record.date) });
     setModal({ open: true, editing: record });
   };
 
@@ -95,17 +135,41 @@ export default function FinanzasPage() {
     try {
       const values = await form.validateFields();
       setSaving(true);
-      const payload = { ...values, date: values.date.format("YYYY-MM-DD") };
+      const payload: Record<string, any> = { ...values, date: values.date.format("YYYY-MM-DD") };
+
+      if (!modal.editing) {
+        if (values.category === "insumo" && insumoQty && insumoQty > 0) {
+          if (insumoMode === "existing" && insumoProductId) {
+            payload.insumo_product_id = insumoProductId;
+          } else if (insumoMode === "new" && insumoName.trim()) {
+            payload.insumo_name = insumoName.trim();
+            payload.insumo_unit = insumoUnit;
+          }
+          payload.insumo_qty = insumoQty;
+        } else if (values.category === "herramienta" && herramientaQty > 0) {
+          if (herramientaMode === "existing" && herramientaProductId) {
+            payload.herramienta_product_id = herramientaProductId;
+          } else if (herramientaMode === "new" && herramientaName.trim()) {
+            payload.herramienta_name = herramientaName.trim();
+            if (herramientaSerial.trim()) payload.herramienta_serial = herramientaSerial.trim();
+          }
+          payload.herramienta_qty = herramientaQty;
+        }
+      }
 
       if (modal.editing) {
         await axiosInstance.patch(`${API}/expenses/${modal.editing.id}/`, payload);
         notification.success({ message: "Gasto actualizado correctamente" });
       } else {
         await axiosInstance.post(`${API}/expenses/`, payload);
-        notification.success({ message: "Gasto registrado correctamente" });
+        const stockMsg = payload.insumo_qty ? " y stock de insumo actualizado"
+          : payload.herramienta_qty ? " y herramienta registrada en inventario"
+          : "";
+        notification.success({ message: `Gasto registrado${stockMsg}` });
       }
 
       setModal({ open: false, editing: null });
+      resetStockSection();
       refresh();
     } catch (e: any) {
       if (e?.errorFields) return;
@@ -113,7 +177,8 @@ export default function FinanzasPage() {
     } finally {
       setSaving(false);
     }
-  }, [form, modal.editing, refresh]);
+  }, [form, modal.editing, refresh, insumoMode, insumoProductId, insumoName, insumoUnit, insumoQty,
+      herramientaMode, herramientaProductId, herramientaName, herramientaSerial, herramientaQty]);
 
   const handleDelete = useCallback(async (id: number) => {
     try {
@@ -125,54 +190,28 @@ export default function FinanzasPage() {
     }
   }, [refresh]);
 
-  const fmtARS = (v: number) =>
-    `$${v.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
+  const fmtARS = (v: number) => `$${v.toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
 
   const statCards = [
-    {
-      title: "Total gastos",
-      value: totalAmount,
-      icon: <DollarOutlined />,
-      color: "#dc2626",
-      bg: "#fef2f2",
-    },
-    {
-      title: "Insumos",
-      value: insumos,
-      icon: <ShoppingOutlined />,
-      color: "#1677ff",
-      bg: "#e6f4ff",
-    },
-    {
-      title: "Servicios",
-      value: servicios,
-      icon: <FileTextOutlined />,
-      color: "#7c3aed",
-      bg: "#f3e8ff",
-    },
-    {
-      title: "Alquiler",
-      value: alquiler,
-      icon: <HomeOutlined />,
-      color: "#d97706",
-      bg: "#fffbeb",
-    },
+    { title: "Total gastos",  value: totalAmount,  icon: <DollarOutlined />,  color: "#dc2626", bg: "#fef2f2" },
+    { title: "Insumos",       value: insumos,       icon: <ShoppingOutlined />, color: "#1677ff", bg: "#e6f4ff" },
+    { title: "Herramientas",  value: herramientas,  icon: <ToolOutlined />,     color: "#ea580c", bg: "#fff7ed" },
+    { title: "Servicios",     value: servicios,     icon: <FileTextOutlined />, color: "#7c3aed", bg: "#f3e8ff" },
+    { title: "Alquiler",      value: alquiler,      icon: <HomeOutlined />,     color: "#d97706", bg: "#fffbeb" },
   ];
 
   const FILTER_OPTS: { key: string | null; label: string }[] = [
-    { key: null, label: "Todos" },
-    { key: "insumo", label: "Insumo" },
-    { key: "servicio", label: "Servicio" },
-    { key: "alquiler", label: "Alquiler" },
-    { key: "otro", label: "Otro" },
+    { key: null,          label: "Todos" },
+    { key: "insumo",      label: "Insumo" },
+    { key: "herramienta", label: "Herramienta" },
+    { key: "servicio",    label: "Servicio" },
+    { key: "alquiler",    label: "Alquiler" },
+    { key: "otro",        label: "Otro" },
   ];
 
   const columns = [
     {
-      title: "Fecha",
-      dataIndex: "date",
-      key: "date",
-      width: 110,
+      title: "Fecha", dataIndex: "date", key: "date", width: 110,
       render: (d: string) => (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <CalendarOutlined style={{ color: "#94a3b8", fontSize: 12 }} />
@@ -183,10 +222,7 @@ export default function FinanzasPage() {
       defaultSortOrder: "descend" as const,
     },
     {
-      title: "Categoría",
-      dataIndex: "category",
-      key: "category",
-      width: 120,
+      title: "Categoría", dataIndex: "category", key: "category", width: 140,
       render: (cat: ExpenseCategory) => {
         const cfg = CAT_CONFIG[cat];
         if (!cfg) return <Tag>{cat}</Tag>;
@@ -202,18 +238,11 @@ export default function FinanzasPage() {
       },
     },
     {
-      title: "Descripción",
-      dataIndex: "description",
-      key: "description",
-      render: (v: string) => (
-        <Text style={{ fontSize: 13, color: "#1e293b" }}>{v}</Text>
-      ),
+      title: "Descripción", dataIndex: "description", key: "description",
+      render: (v: string) => <Text style={{ fontSize: 13, color: "#1e293b" }}>{v}</Text>,
     },
     {
-      title: "Monto",
-      dataIndex: "amount",
-      key: "amount",
-      width: 140,
+      title: "Monto", dataIndex: "amount", key: "amount", width: 140,
       render: (a: string) => (
         <Text strong style={{ fontSize: 14, color: "#dc2626", fontVariantNumeric: "tabular-nums" }}>
           {fmtARS(parseFloat(a))}
@@ -222,10 +251,7 @@ export default function FinanzasPage() {
       sorter: (a: Expense, b: Expense) => parseFloat(a.amount) - parseFloat(b.amount),
     },
     {
-      title: "OT vinculada",
-      dataIndex: "work_order_title",
-      key: "work_order",
-      width: 160,
+      title: "OT vinculada", dataIndex: "work_order_title", key: "work_order", width: 160,
       render: (t: string | null) =>
         t ? (
           <span style={{
@@ -235,15 +261,10 @@ export default function FinanzasPage() {
           }}>
             <LinkOutlined style={{ fontSize: 10 }} /> {t}
           </span>
-        ) : (
-          <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
-        ),
+        ) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>,
     },
     {
-      title: "Registrado por",
-      dataIndex: "registered_by_name",
-      key: "registered_by",
-      width: 160,
+      title: "Registrado por", dataIndex: "registered_by_name", key: "registered_by", width: 160,
       render: (v: string) => (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <UserOutlined style={{ color: "#94a3b8", fontSize: 11 }} />
@@ -252,25 +273,17 @@ export default function FinanzasPage() {
       ),
     },
     ...(isAdmin ? [{
-      title: "",
-      key: "actions",
-      width: 80,
+      title: "", key: "actions", width: 80,
       render: (_: any, record: Expense) => (
         <Space size={4}>
           <Tooltip title="Editar">
-            <Button
-              size="small" type="text"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record)}
-              style={{ color: "#64748b", borderRadius: 6 }}
-            />
+            <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEdit(record)}
+              style={{ color: "#64748b", borderRadius: 6 }} />
           </Tooltip>
           <Popconfirm
-            title="¿Eliminar este gasto?"
-            description="Esta acción no se puede deshacer."
+            title="¿Eliminar este gasto?" description="Esta acción no se puede deshacer."
             onConfirm={() => handleDelete(record.id)}
-            okText="Eliminar" okButtonProps={{ danger: true }}
-            cancelText="Cancelar"
+            okText="Eliminar" okButtonProps={{ danger: true }} cancelText="Cancelar"
           >
             <Tooltip title="Eliminar">
               <Button size="small" type="text" icon={<DeleteOutlined />} danger style={{ borderRadius: 6 }} />
@@ -280,6 +293,123 @@ export default function FinanzasPage() {
       ),
     }] : []),
   ];
+
+  // ── Sección de stock según categoría ──────────────────────────────
+  const renderStockSection = () => {
+    if (modal.editing) return null;
+
+    if (watchedCategory === "insumo") {
+      return (
+        <>
+          <Divider style={{ margin: "4px 0 14px" }} />
+          <div style={{ background: "#f0f9ff", border: "1px solid #bae0ff", borderRadius: 10, padding: "14px 16px" }}>
+            <Text strong style={{ fontSize: 12, color: "#0369a1", display: "block", marginBottom: 10 }}>
+              Actualizar stock de insumo
+            </Text>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {(["existing", "new"] as const).map((m) => (
+                <button key={m} onClick={() => setInsumoMode(m)} style={{
+                  padding: "5px 14px", borderRadius: 16, cursor: "pointer", fontSize: 12,
+                  border: insumoMode === m ? "1.5px solid #1677ff" : "1.5px solid #d9d9d9",
+                  background: insumoMode === m ? "#e6f4ff" : "#fff",
+                  color: insumoMode === m ? "#1677ff" : "#64748b",
+                  fontWeight: insumoMode === m ? 700 : 400,
+                }}>
+                  {m === "existing" ? "Insumo existente" : "Nuevo insumo"}
+                </button>
+              ))}
+            </div>
+            {insumoMode === "existing" ? (
+              <Select
+                showSearch style={{ width: "100%", marginBottom: 10 }}
+                placeholder="Buscar insumo..."
+                optionFilterProp="label"
+                value={insumoProductId}
+                onChange={setInsumoProductId}
+                options={insumoProducts.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} (stock: ${Number(p.stock_qty).toLocaleString("es-AR")} ${p.unit})`,
+                }))}
+                notFoundContent={<Text type="secondary" style={{ fontSize: 12 }}>No hay insumos — usá "Nuevo insumo"</Text>}
+              />
+            ) : (
+              <Row gutter={8} style={{ marginBottom: 10 }}>
+                <Col span={14}>
+                  <Input placeholder="Nombre del insumo" value={insumoName}
+                    onChange={(e) => setInsumoName(e.target.value)} size="middle" />
+                </Col>
+                <Col span={10}>
+                  <Select style={{ width: "100%" }} value={insumoUnit} onChange={setInsumoUnit}
+                    options={COMMON_UNITS.map((u) => ({ value: u, label: u }))} />
+                </Col>
+              </Row>
+            )}
+            <InputNumber
+              style={{ width: "100%" }} placeholder="Cantidad recibida" min={0.01} step={1}
+              value={insumoQty} onChange={(v) => setInsumoQty(v as number | null)}
+            />
+          </div>
+        </>
+      );
+    }
+
+    if (watchedCategory === "herramienta") {
+      return (
+        <>
+          <Divider style={{ margin: "4px 0 14px" }} />
+          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "14px 16px" }}>
+            <Text strong style={{ fontSize: 12, color: "#c2410c", display: "block", marginBottom: 10 }}>
+              Registrar en inventario de herramientas
+            </Text>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {(["existing", "new"] as const).map((m) => (
+                <button key={m} onClick={() => setHerramientaMode(m)} style={{
+                  padding: "5px 14px", borderRadius: 16, cursor: "pointer", fontSize: 12,
+                  border: herramientaMode === m ? "1.5px solid #ea580c" : "1.5px solid #d9d9d9",
+                  background: herramientaMode === m ? "#fff7ed" : "#fff",
+                  color: herramientaMode === m ? "#ea580c" : "#64748b",
+                  fontWeight: herramientaMode === m ? 700 : 400,
+                }}>
+                  {m === "existing" ? "Herramienta existente" : "Nueva herramienta"}
+                </button>
+              ))}
+            </div>
+            {herramientaMode === "existing" ? (
+              <Select
+                showSearch style={{ width: "100%", marginBottom: 10 }}
+                placeholder="Buscar herramienta..."
+                optionFilterProp="label"
+                value={herramientaProductId}
+                onChange={setHerramientaProductId}
+                options={herramientaProducts.map((p) => ({
+                  value: p.id,
+                  label: `${p.name}${p.serial_number ? ` — S/N: ${p.serial_number}` : ""} (stock: ${Number(p.stock_qty).toLocaleString("es-AR")})`,
+                }))}
+                notFoundContent={<Text type="secondary" style={{ fontSize: 12 }}>No hay herramientas — usá "Nueva herramienta"</Text>}
+              />
+            ) : (
+              <Row gutter={8} style={{ marginBottom: 10 }}>
+                <Col span={14}>
+                  <Input placeholder="Nombre (ej: Taladro Bosch)" value={herramientaName}
+                    onChange={(e) => setHerramientaName(e.target.value)} size="middle" />
+                </Col>
+                <Col span={10}>
+                  <Input placeholder="Nro. serie (opcional)" value={herramientaSerial}
+                    onChange={(e) => setHerramientaSerial(e.target.value)} size="middle" />
+                </Col>
+              </Row>
+            )}
+            <InputNumber
+              style={{ width: "100%" }} placeholder="Cantidad" min={1} step={1}
+              value={herramientaQty} onChange={(v) => setHerramientaQty((v as number) ?? 1)}
+            />
+          </div>
+        </>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div style={{ padding: 24, background: "#f0f2f5", minHeight: "100vh" }}>
@@ -291,29 +421,23 @@ export default function FinanzasPage() {
         boxShadow: "0 8px 32px rgba(15,23,42,0.25)",
         display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16,
       }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: "rgba(255,255,255,0.15)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontSize: 20,
-            }}>
-              <BankOutlined />
-            </div>
-            <div>
-              <Title level={2} style={{ color: "#fff", margin: 0, fontWeight: 800, letterSpacing: "-0.5px" }}>
-                Finanzas
-              </Title>
-              <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
-                Registro y control de gastos operativos
-              </Text>
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 20,
+          }}>
+            <BankOutlined />
+          </div>
+          <div>
+            <Title level={2} style={{ color: "#fff", margin: 0, fontWeight: 800, letterSpacing: "-0.5px" }}>
+              Gastos
+            </Title>
+            <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}>
+              Registro y control de gastos operativos
+            </Text>
           </div>
         </div>
-
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Resumen rápido en el header */}
           <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 20px", textAlign: "center" }}>
             <div style={{ color: "#fff", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{expenses.length}</div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 3 }}>registros</div>
@@ -324,14 +448,11 @@ export default function FinanzasPage() {
             </div>
             <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginTop: 3 }}>total gastos</div>
           </div>
-
           <Button icon={<ReloadOutlined />} onClick={refresh}
             style={{ borderRadius: 8, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.25)", color: "#fff" }}
           />
-
           {isAdmin && (
-            <Button
-              type="primary" icon={<PlusOutlined />} onClick={openCreate}
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
               style={{
                 borderRadius: 8, fontWeight: 600,
                 background: "rgba(255,255,255,0.95)", color: "#1e3a8a",
@@ -347,18 +468,13 @@ export default function FinanzasPage() {
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         {statCards.map((s) => (
-          <Col key={s.title} xs={24} sm={12} md={6}>
-            <Card
-              variant="borderless"
-              style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
-              styles={{ body: { padding: "18px 20px" } }}
-            >
+          <Col key={s.title} xs={24} sm={12} md={s.title === "Total gastos" ? 24 : 6} lg={s.title === "Total gastos" ? 6 : undefined}>
+            <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+              styles={{ body: { padding: "18px 20px" } }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 12,
-                  background: s.bg, color: s.color,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, flexShrink: 0,
+                  width: 44, height: 44, borderRadius: 12, background: s.bg, color: s.color,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0,
                 }}>
                   {s.icon}
                 </div>
@@ -375,16 +491,11 @@ export default function FinanzasPage() {
       </Row>
 
       {/* ── Tabla ──────────────────────────────────────────────────── */}
-      <Card
-        variant="borderless"
-        style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
-        styles={{ body: { padding: 0 } }}
-      >
-        {/* Toolbar */}
+      <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+        styles={{ body: { padding: 0 } }}>
         <div style={{
           padding: "16px 20px", display: "flex", justifyContent: "space-between",
-          alignItems: "center", flexWrap: "wrap", gap: 12,
-          borderBottom: "1px solid #f1f5f9",
+          alignItems: "center", flexWrap: "wrap", gap: 12, borderBottom: "1px solid #f1f5f9",
         }}>
           <Space size={8} wrap>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -397,59 +508,55 @@ export default function FinanzasPage() {
               const cfg = key ? CAT_CONFIG[key as ExpenseCategory] : null;
               const isActive = catFilter === key;
               return (
-                <button
-                  key={key ?? "todos"}
-                  onClick={() => setCatFilter(key)}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "6px 14px", borderRadius: 20,
-                    border: isActive
-                      ? `1.5px solid ${cfg?.color ?? "#1677ff"}`
-                      : "1.5px solid #e2e8f0",
-                    background: isActive ? (cfg?.bg ?? "#e6f4ff") : "#fff",
-                    color: isActive ? (cfg?.color ?? "#1677ff") : "#64748b",
-                    fontWeight: isActive ? 700 : 500,
-                    fontSize: 13, cursor: "pointer",
-                    transition: "all 0.18s",
-                  }}
-                >
+                <button key={key ?? "todos"} onClick={() => setCatFilter(key)} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: 20,
+                  border: isActive ? `1.5px solid ${cfg?.color ?? "#1677ff"}` : "1.5px solid #e2e8f0",
+                  background: isActive ? (cfg?.bg ?? "#e6f4ff") : "#fff",
+                  color: isActive ? (cfg?.color ?? "#1677ff") : "#64748b",
+                  fontWeight: isActive ? 700 : 500, fontSize: 13, cursor: "pointer", transition: "all 0.18s",
+                }}>
                   {cfg && <span style={{ fontSize: 12 }}>{cfg.icon}</span>}
                   {label}
                 </button>
               );
             })}
           </Space>
-
-          <Space size={8}>
-            <CalendarOutlined style={{ color: "#64748b" }} />
-            <RangePicker
-              format="DD/MM/YYYY"
-              placeholder={["Desde", "Hasta"]}
-              value={dateRange}
-              onChange={(vals) => setDateRange(vals as [Dayjs, Dayjs] | null)}
-              allowClear
-              style={{ borderRadius: 8 }}
+          <Space size={12}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <CalendarOutlined style={{ color: "#64748b" }} />
+              <Text strong style={{ fontSize: 13, color: "#64748b" }}>Mes:</Text>
+            </div>
+            <DatePicker
+              picker="month"
+              format="MMMM YYYY"
+              value={selectedMonth}
+              onChange={(val) => setSelectedMonth(val)}
+              allowClear={false}
+              style={{ borderRadius: 8, width: 160 }}
+              placeholder="Seleccionar mes"
             />
+            <Button 
+                type="text" 
+                size="small" 
+                onClick={() => setSelectedMonth(null)}
+                style={{ fontSize: 12, color: "#1677ff" }}
+            >
+                Ver todos
+            </Button>
           </Space>
         </div>
 
         <Table
-          dataSource={expenses}
-          columns={columns}
-          rowKey="id"
-          loading={expensesQuery.isLoading}
-          size="middle"
+          dataSource={expenses} columns={columns} rowKey="id"
+          loading={expensesQuery.isLoading} size="middle"
           pagination={{ pageSize: 50, showSizeChanger: false, showTotal: (t) => `${t} gastos` }}
           style={{ borderRadius: "0 0 14px 14px" }}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={<Text type="secondary">No hay gastos registrados</Text>}
-                style={{ padding: "40px 0" }}
-              />
-            ),
-          }}
+          locale={{ emptyText: (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={<Text type="secondary">No hay gastos registrados</Text>}
+              style={{ padding: "40px 0" }} />
+          )}}
           rowClassName={() => "expense-row"}
         />
       </Card>
@@ -457,33 +564,21 @@ export default function FinanzasPage() {
       {/* ── Modal Registrar / Editar Gasto ──────────────────────────── */}
       <Modal
         open={modal.open}
-        onCancel={() => setModal({ open: false, editing: null })}
-        onOk={handleSave}
-        okText={modal.editing ? "Guardar cambios" : "Registrar gasto"}
-        cancelText="Cancelar"
-        confirmLoading={saving}
-        width={560}
-        centered
-        okButtonProps={{ style: { borderRadius: 8, fontWeight: 600, height: 38 } }}
-        cancelButtonProps={{ style: { borderRadius: 8, height: 38 } }}
+        onCancel={() => { setModal({ open: false, editing: null }); resetStockSection(); }}
+        width={560} centered footer={null} title={null}
         styles={{
           header: { paddingBottom: 0 },
           content: { borderRadius: 16, padding: 0, overflow: "hidden" },
         }}
-        title={null}
-        footer={null}
       >
-        {/* Header del modal */}
         <div style={{
           background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #1677ff 100%)",
           padding: "22px 24px 20px",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
-              width: 38, height: 38, borderRadius: 10,
-              background: "rgba(255,255,255,0.15)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontSize: 18,
+              width: 38, height: 38, borderRadius: 10, background: "rgba(255,255,255,0.15)",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 18,
             }}>
               {modal.editing ? <EditOutlined /> : <PlusOutlined />}
             </div>
@@ -492,19 +587,14 @@ export default function FinanzasPage() {
                 {modal.editing ? "Editar gasto" : "Registrar nuevo gasto"}
               </div>
               <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 2 }}>
-                {modal.editing
-                  ? "Modificá los datos del gasto seleccionado"
-                  : "Completá el formulario para registrar un gasto operativo"}
+                {modal.editing ? "Modificá los datos del gasto seleccionado" : "Completá el formulario para registrar un gasto operativo"}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Body del modal */}
         <div style={{ padding: "24px" }}>
           <Form form={form} layout="vertical" requiredMark="optional">
-
-            {/* Fila 1: Categoría + Fecha */}
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
@@ -513,15 +603,12 @@ export default function FinanzasPage() {
                   rules={[{ required: true, message: "Seleccioná una categoría" }]}
                 >
                   <Select
-                    placeholder="Seleccionar..."
-                    size="large"
-                    style={{ borderRadius: 8 }}
+                    placeholder="Seleccionar..." size="large" style={{ borderRadius: 8 }}
                     options={Object.entries(CAT_CONFIG).map(([v, cfg]) => ({
                       value: v,
                       label: (
                         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ color: cfg.color }}>{cfg.icon}</span>
-                          {cfg.label}
+                          <span style={{ color: cfg.color }}>{cfg.icon}</span> {cfg.label}
                         </span>
                       ),
                     }))}
@@ -534,48 +621,37 @@ export default function FinanzasPage() {
                   label={<Text strong style={{ fontSize: 13 }}>Fecha del gasto</Text>}
                   rules={[{ required: true, message: "Indicá la fecha" }]}
                 >
-                  <DatePicker
-                    style={{ width: "100%", borderRadius: 8 }}
-                    format="DD/MM/YYYY"
-                    size="large"
-                    placeholder="DD/MM/AAAA"
-                  />
+                  <DatePicker style={{ width: "100%", borderRadius: 8 }} format="DD/MM/YYYY" size="large" placeholder="DD/MM/AAAA" />
                 </Form.Item>
               </Col>
             </Row>
 
-            {/* Descripción */}
             <Form.Item
               name="description"
               label={<Text strong style={{ fontSize: 13 }}>Descripción</Text>}
               rules={[{ required: true, message: "Agregá una descripción" }]}
             >
-              <Input
-                size="large"
-                placeholder="Ej: Resmas A4, factura luz febrero, alquiler depósito..."
-                style={{ borderRadius: 8 }}
-                prefix={<FileTextOutlined style={{ color: "#94a3b8" }} />}
-              />
+              <Input size="large" placeholder="Ej: Resmas A4, factura luz febrero, alquiler depósito..."
+                style={{ borderRadius: 8 }} prefix={<FileTextOutlined style={{ color: "#94a3b8" }} />} />
             </Form.Item>
 
-            {/* Monto */}
             <Form.Item
               name="amount"
               label={<Text strong style={{ fontSize: 13 }}>Monto total</Text>}
               rules={[{ required: true, message: "Ingresá el monto" }]}
             >
-              <InputNumber
-                style={{ width: "100%", borderRadius: 8 }}
-                size="large"
-                min={0.01}
+              <InputNumber 
+                style={{ width: "100%", borderRadius: 8 }} 
+                size="large" 
+                min={0} 
                 step={100}
-                prefix={<span style={{ color: "#94a3b8", fontWeight: 700 }}>$</span>}
+                prefix={<span style={{ color: "#94a3b8", fontWeight: 700 }}>$</span>} 
                 placeholder="0,00"
                 formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                parser={(v) => v?.replace(/\$\s?|(\.*)/g, "").replace(",", ".") as any}
               />
             </Form.Item>
 
-            {/* OT vinculada */}
             <Form.Item
               name="work_order"
               label={
@@ -585,36 +661,26 @@ export default function FinanzasPage() {
                 </span>
               }
             >
-              <InputNumber
-                style={{ width: "100%", borderRadius: 8 }}
-                size="large"
-                placeholder="ID de la orden de trabajo"
-                min={1}
-                prefix={<LinkOutlined style={{ color: "#94a3b8" }} />}
-              />
+              <InputNumber style={{ width: "100%", borderRadius: 8 }} size="large"
+                placeholder="ID de la orden de trabajo" min={1}
+                prefix={<LinkOutlined style={{ color: "#94a3b8" }} />} />
             </Form.Item>
 
-            {/* Divider + botones */}
-            <Divider style={{ margin: "8px 0 20px" }} />
+            {renderStockSection()}
 
+            <Divider style={{ margin: "8px 0 20px" }} />
             <Row gutter={12}>
               <Col span={12}>
-                <Button
-                  block size="large"
-                  onClick={() => setModal({ open: false, editing: null })}
-                  style={{ borderRadius: 8, fontWeight: 600, height: 42 }}
-                >
+                <Button block size="large"
+                  onClick={() => { setModal({ open: false, editing: null }); resetStockSection(); }}
+                  style={{ borderRadius: 8, fontWeight: 600, height: 42 }}>
                   Cancelar
                 </Button>
               </Col>
               <Col span={12}>
-                <Button
-                  block size="large" type="primary"
-                  loading={saving}
-                  onClick={handleSave}
+                <Button block size="large" type="primary" loading={saving} onClick={handleSave}
                   icon={modal.editing ? <CheckCircleOutlined /> : <PlusOutlined />}
-                  style={{ borderRadius: 8, fontWeight: 600, height: 42 }}
-                >
+                  style={{ borderRadius: 8, fontWeight: 600, height: 42 }}>
                   {modal.editing ? "Guardar cambios" : "Registrar gasto"}
                 </Button>
               </Col>
@@ -623,12 +689,8 @@ export default function FinanzasPage() {
         </div>
       </Modal>
 
-      {/* Row hover styles */}
       <style>{`
-        .expense-row:hover td {
-          background: #f8fafc !important;
-          transition: background 0.15s;
-        }
+        .expense-row:hover td { background: #f8fafc !important; transition: background 0.15s; }
       `}</style>
     </div>
   );

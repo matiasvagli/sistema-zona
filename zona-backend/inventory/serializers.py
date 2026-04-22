@@ -7,8 +7,9 @@ def _is_admin(user):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    sector_name = serializers.ReadOnlyField(source='sector.name')
-    stock_bajo = serializers.ReadOnlyField()
+    sector_name  = serializers.ReadOnlyField(source='sector.name')
+    stock_bajo   = serializers.ReadOnlyField()
+    kind_display = serializers.ReadOnlyField(source='get_kind_display')
     reserved_qty = serializers.SerializerMethodField()
     available_qty = serializers.SerializerMethodField()
 
@@ -34,10 +35,13 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+        read_only_fields = ('kind_display',)
 
 
 class StockMovementSerializer(serializers.ModelSerializer):
     product_name = serializers.ReadOnlyField(source='product.name')
+    product_kind = serializers.ReadOnlyField(source='product.kind')
+    product_unit = serializers.ReadOnlyField(source='product.unit')
     created_by_name = serializers.ReadOnlyField(source='created_by.username')
 
     def to_representation(self, instance):

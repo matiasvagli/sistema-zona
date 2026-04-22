@@ -4,10 +4,11 @@ from django.conf import settings
 
 class Expense(models.Model):
     class Category(models.TextChoices):
-        INSUMO   = 'insumo',   'Insumo'
-        SERVICIO = 'servicio', 'Servicio'
-        ALQUILER = 'alquiler', 'Alquiler'
-        OTRO     = 'otro',     'Otro'
+        INSUMO      = 'insumo',      'Insumo'
+        HERRAMIENTA = 'herramienta', 'Herramienta'
+        SERVICIO    = 'servicio',    'Servicio'
+        ALQUILER    = 'alquiler',    'Alquiler'
+        OTRO        = 'otro',        'Otro'
 
     category    = models.CharField(max_length=20, choices=Category.choices, default=Category.INSUMO)
     description = models.CharField(max_length=255)

@@ -510,15 +510,33 @@ export default function Dashboard() {
                   )}
                 </div>
                 <Text type="secondary" style={{ fontSize: 11 }}>
-                  {users.length} personas
+                  {users.length} personas, {users.filter(u => u.is_online).length} conectados
                 </Text>
               </div>
               <Divider style={{ margin: 0 }} />
               {users.length === 0 ? (
                 <Empty description="Sin empleados" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
               ) : (
-                <div>
-                  {users.slice(0, 6).map((emp: any, idx: number, arr) => {
+                <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
+                  {[...users].sort((a, b) => {
+                    // 1. Prioridad Conectados
+                    if (!!a.is_online !== !!b.is_online) return a.is_online ? -1 : 1;
+                    
+                    // 2. Prioridad Jerarquía (CEO > Admin > Empleado)
+                    const getWeight = (u: any) => {
+                      if (u.rol === 'ceo') return 0;
+                      if (u.rol === 'admin' || u.is_staff) return 1;
+                      return 2;
+                    };
+                    
+                    const weightA = getWeight(a);
+                    const weightB = getWeight(b);
+                    
+                    if (weightA !== weightB) return weightA - weightB;
+                    
+                    // 3. Alfabético por nombre si lo demás es igual
+                    return (a.first_name || a.username).localeCompare(b.first_name || b.username);
+                  }).map((emp: any, idx: number, arr) => {
                     const initials = (emp.first_name?.[0] || emp.username?.[0] || "?").toUpperCase() +
                       (emp.last_name?.[0] || emp.username?.[1] || "?").toUpperCase();
                     const isOnline = !!emp.is_online;
