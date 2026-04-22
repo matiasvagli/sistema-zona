@@ -113,6 +113,10 @@ class StockMovement(models.Model):
         blank=True,
         related_name='stock_movements'
     )
+    unit_price_snapshot = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Snapshot del precio promedio ponderado del producto al momento del egreso. Permite calcular el costo real de materiales usados en OTs."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
@@ -157,9 +161,11 @@ class PurchaseRequest(models.Model):
 def update_product_stock(sender, instance, created, **kwargs):
     if not created:
         return
-    # Ingreso con precio de compra → recalcular promedio ponderado antes de sumar stock
+
+    product = Product.objects.get(pk=instance.product_id)
+
     if instance.qty > 0 and instance.purchase_price is not None:
-        product = Product.objects.get(pk=instance.product_id)
+        # Ingreso con precio → recalcular promedio ponderado
         old_qty = max(product.stock_qty, Decimal('0'))
         old_price = product.unit_price or Decimal('0')
         total_qty = old_qty + instance.qty
@@ -171,4 +177,10 @@ def update_product_stock(sender, instance, created, **kwargs):
     else:
         Product.objects.filter(pk=instance.product_id).update(
             stock_qty=F('stock_qty') + instance.qty
+        )
+
+    # Egreso: snapshot del precio promedio actual para poder calcular costo de OT
+    if instance.qty < 0 and instance.unit_price_snapshot is None and product.unit_price:
+        StockMovement.objects.filter(pk=instance.pk).update(
+            unit_price_snapshot=product.unit_price
         )

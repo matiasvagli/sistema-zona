@@ -12,6 +12,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from accounts.views import UserViewSet, SectorMembershipViewSet
 from clients.views import ClientViewSet
 from inventory.views import ProductViewSet, StockMovementViewSet, MaterialReservationViewSet, PurchaseRequestViewSet
+from finanzas.views import ExpenseViewSet, SupplierViewSet, SupplierInvoiceViewSet
 from budgets.views import BudgetViewSet, BudgetItemViewSet
 from work_orders.views import WorkOrderViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
@@ -37,6 +38,9 @@ router.register(r'space-rentals', SpaceRentalViewSet)
 router.register(r'campaigns', CampaignViewSet)
 router.register(r'campaign-spaces', CampaignSpaceViewSet)
 router.register(r'employees', EmployeeViewSet)
+router.register(r'expenses', ExpenseViewSet, basename='expense')
+router.register(r'suppliers', SupplierViewSet)
+router.register(r'supplier-invoices', SupplierInvoiceViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

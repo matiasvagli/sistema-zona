@@ -45,12 +45,13 @@ class StockMovementSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and not _is_admin(request.user):
             data.pop('purchase_price', None)
+            data.pop('unit_price_snapshot', None)
         return data
 
     class Meta:
         model = StockMovement
         fields = '__all__'
-        read_only_fields = ('created_by', 'created_at')
+        read_only_fields = ('created_by', 'created_at', 'unit_price_snapshot')
 
 
 class MaterialReservationSerializer(serializers.ModelSerializer):

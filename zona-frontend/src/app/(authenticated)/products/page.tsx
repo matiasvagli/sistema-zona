@@ -334,86 +334,117 @@ export default function InventarioPage() {
     return (
       <div style={{
         background: "#fff",
-        borderRadius: 16,
-        border: "1px solid #94a3b8",
-        borderTop: `5px solid ${palette?.solid ?? "#94a3b8"}`,
-        padding: "20px",
-        display: "flex", flexDirection: "column", gap: 12,
-        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+        borderRadius: 12,
+        border: "1px solid #e2e8f0",
+        borderTop: `4px solid ${palette?.solid ?? "#94a3b8"}`,
+        padding: "12px 14px",
+        display: "flex", flexDirection: "column", gap: 8,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
         transition: "all 0.2s ease-in-out",
         cursor: "default",
         position: "relative",
       }}
         onMouseEnter={(e) => { 
-            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 10px 25px rgba(0,0,0,0.08)"; 
-            (e.currentTarget as HTMLDivElement).style.transform = "translateY(-3px)"; 
-            (e.currentTarget as HTMLDivElement).style.borderColor = "#64748b";
-        }}
-        onMouseLeave={(e) => { 
-            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.03)"; 
-            (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; 
+            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)"; 
+            (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; 
             (e.currentTarget as HTMLDivElement).style.borderColor = "#94a3b8";
         }}
+        onMouseLeave={(e) => { 
+            (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.04)"; 
+            (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)"; 
+            (e.currentTarget as HTMLDivElement).style.borderColor = "#e2e8f0";
+        }}
       >
-        {/* Header: Sector & Status */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+        {/* Header: Sector + acciones admin + alerta */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {/* Tag sector */}
           {palette ? (
-            <Tag color={palette.solid} style={{ borderRadius: 12, border: "none", fontWeight: 600, padding: "2px 10px", margin: 0 }}>
+            <Tag color={palette.solid} style={{ borderRadius: 10, border: "none", fontWeight: 600, padding: "1px 8px", margin: 0, fontSize: 11 }}>
               {sector?.name}
             </Tag>
           ) : (
-            <Tag color="default" style={{ borderRadius: 12, border: "none", fontWeight: 600, padding: "2px 10px", margin: 0 }}>
+            <Tag color="default" style={{ borderRadius: 10, border: "none", fontWeight: 600, padding: "1px 8px", margin: 0, fontSize: 11 }}>
               Global
             </Tag>
           )}
+
+          {/* Espaciador */}
+          <div style={{ flex: 1 }} />
+
+          {/* Alerta stock bajo */}
           {isLow && (
             <Tooltip title={`Stock bajo — mínimo: ${product.alert_qty} ${product.unit}`}>
-              <div style={{ 
-                  background: "#fff7e6", padding: "4px 8px", borderRadius: 12, 
-                  display: "flex", alignItems: "center", gap: 4, color: "#fa8c16", fontWeight: 700, fontSize: 11 
+              <div style={{
+                background: "#fff7e6", padding: "2px 6px", borderRadius: 10,
+                display: "flex", alignItems: "center", gap: 3, color: "#fa8c16", fontWeight: 700, fontSize: 10
               }}>
-                <WarningOutlined /> Bajo Stock
+                <WarningOutlined style={{ fontSize: 10 }} /> Bajo
               </div>
             </Tooltip>
+          )}
+
+          {/* Edit / Delete (solo admin) */}
+          {isAdmin && (
+            <>
+              <Tooltip title="Editar">
+                <Button
+                  type="text" size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => openEditModal(product)}
+                  style={{ color: "#94a3b8", padding: "0 3px", height: 20, minWidth: 20 }}
+                />
+              </Tooltip>
+              <Popconfirm
+                title="¿Eliminar producto?"
+                description="Esta acción no se puede deshacer."
+                onConfirm={() => deleteProduct(product.id)}
+                okText="Eliminar" okButtonProps={{ danger: true }}
+                cancelText="Cancelar"
+              >
+                <Tooltip title="Eliminar">
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ padding: "0 3px", height: 20, minWidth: 20 }} />
+                </Tooltip>
+              </Popconfirm>
+            </>
           )}
         </div>
 
         {/* Nombre */}
-        <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", lineHeight: 1.3, minHeight: 42 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", lineHeight: 1.3, minHeight: 32 }}>
             {product.name}
         </div>
 
         {/* Stock Principal */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, background: isLow ? "#fff1f0" : "#f8fafc", padding: "12px 16px", borderRadius: 12 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 5, background: isLow ? "#fff1f0" : "#f8fafc", padding: "8px 10px", borderRadius: 8 }}>
           <span style={{
-            fontSize: 28, fontWeight: 800, lineHeight: 1,
+            fontSize: 22, fontWeight: 800, lineHeight: 1,
             color: isLow ? "#f5222d" : "#0f172a",
           }}>
             {Number(product.available_qty ?? product.stock_qty).toLocaleString("es-AR")}
           </span>
-          <span style={{ fontSize: 14, color: isLow ? "#f5222d" : "#64748b", fontWeight: 500 }}>{product.unit} <span style={{ fontSize: 12, fontWeight: 400 }}>disp.</span></span>
+          <span style={{ fontSize: 12, color: isLow ? "#f5222d" : "#64748b", fontWeight: 500 }}>{product.unit} <span style={{ fontSize: 11, fontWeight: 400 }}>disp.</span></span>
         </div>
 
         {/* Detalles */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 4px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748b" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 2px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748b" }}>
                 <span>Total físico:</span>
                 <span style={{ fontWeight: 600, color: "#334155" }}>{Number(product.stock_qty).toLocaleString("es-AR")} {product.unit}</span>
             </div>
             {Number(product.reserved_qty) > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#d46b08" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#d46b08" }}>
                     <span>Reservado:</span>
                     <span style={{ fontWeight: 600 }}>{Number(product.reserved_qty).toLocaleString("es-AR")} {product.unit}</span>
                 </div>
             )}
             {product.alert_qty > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#94a3b8" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8" }}>
                     <span>Mínimo alerta:</span>
                     <span style={{ fontWeight: 500 }}>{product.alert_qty} {product.unit}</span>
                 </div>
             )}
             {isAdmin && product.unit_price != null && (
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#0ea5e9", marginTop: 4, paddingTop: 4, borderTop: "1px dashed #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#0ea5e9", marginTop: 3, paddingTop: 3, borderTop: "1px dashed #e2e8f0" }}>
                     <span>Precio prom.:</span>
                     <span style={{ fontWeight: 600 }}>${Number(product.unit_price).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
@@ -422,48 +453,30 @@ export default function InventarioPage() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Botones principales */}
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {/* Botones Recibir / Pedir */}
+        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
           <Button
             type="primary"
+            size="small"
             icon={<InboxOutlined />}
             onClick={() => { setReceiveModal({ open: true, product }); receiveForm.resetFields(); }}
-            style={{ flex: 1, borderRadius: 8, background: "#1677ff", boxShadow: "0 2px 0 rgba(22,119,255,0.1)" }}
+            style={{ flex: 1, borderRadius: 6, background: "#1677ff", fontSize: 12 }}
           >
             Recibir
           </Button>
           <Tooltip title="Pedirle al admin que compre más stock">
             <Button
+              size="small"
               icon={<ShoppingCartOutlined />}
               onClick={() => { setPurchaseReqModal({ open: true, product }); purchaseReqForm.resetFields(); }}
-              style={{ flex: 1, borderRadius: 8, color: "#fa8c16", borderColor: "#ffd591", background: "#fff7e6" }}
+              style={{ flex: 1, borderRadius: 6, color: "#fa8c16", borderColor: "#ffd591", background: "#fff7e6", fontSize: 12 }}
             >
               Pedir
             </Button>
           </Tooltip>
         </div>
 
-        {/* Acciones admin (edit/delete) */}
-        {isAdmin && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(product)}
-              style={{ color: "#64748b" }}
-            />
-            <Popconfirm
-              title="¿Eliminar producto?"
-              description="Esta acción no se puede deshacer."
-              onConfirm={() => deleteProduct(product.id)}
-              okText="Eliminar" okButtonProps={{ danger: true }}
-              cancelText="Cancelar"
-            >
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ color: "#ef4444" }} />
-            </Popconfirm>
-          </div>
-        )}
+
       </div>
     );
   };
@@ -493,8 +506,8 @@ export default function InventarioPage() {
         </div>
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-          gap: 14,
+          gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))",
+          gap: 10,
         }}>
           {products.map((p) => <ProductCard key={p.id} product={p} />)}
         </div>

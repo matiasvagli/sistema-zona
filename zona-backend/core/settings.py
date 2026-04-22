@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'campaigns',
     'employees',
     'chat',
+    'finanzas',
 ]
 
 MIDDLEWARE = [
