@@ -96,9 +96,14 @@ export default function Dashboard() {
     filters: [{ field: "status", operator: "ne" as any, value: "cancelada" }],
     sorters: [{ field: "created_at", order: "desc" }],
     pagination: { pageSize: 8 },
+    queryOptions: { refetchInterval: 10000 },
   });
 
-  const { result: tasksResult } = useList({ resource: "sector-tasks", pagination: { pageSize: 200 } });
+  const { result: tasksResult } = useList({ 
+    resource: "sector-tasks", 
+    pagination: { pageSize: 200 },
+    queryOptions: { refetchInterval: 10000 },
+  });
 
   const { result: clientsResult } = useList({
     resource: "clients",
@@ -122,7 +127,8 @@ export default function Dashboard() {
     filters: [{ field: "status", operator: "eq", value: "pendiente" }],
     pagination: { pageSize: 50 },
     queryOptions: {
-      enabled: canViewBudgets && !!user
+      enabled: canViewBudgets && !!user,
+      refetchInterval: 10000,
     }
   });
 

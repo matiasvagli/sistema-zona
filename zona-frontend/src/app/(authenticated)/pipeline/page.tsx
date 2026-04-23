@@ -426,20 +426,29 @@ export default function PipelinePage() {
   const { query: sectorsQuery, result: sectorsResult } = useList({
     resource: "sectors",
     sorters: [{ field: "order", order: "asc" }],
-    queryOptions: { queryKey: ["sectors", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["sectors", refreshKey],
+      refetchInterval: 15000, // Los sectores no cambian tanto
+    } as any,
   });
 
   const { query: tasksQuery, result: tasksResult } = useList({
     resource: "sector-tasks",
     pagination: { pageSize: 500 },
-    queryOptions: { queryKey: ["sector-tasks", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["sector-tasks", refreshKey],
+      refetchInterval: 10000,
+    } as any,
   });
 
   const { query: woQuery, result: woResult } = useList({
     resource: "work-orders",
     pagination: { pageSize: 200 },
     filters: [{ field: "status__in", operator: "in", value: ["pendiente", "en_proceso", "pausada", "completada"] }],
-    queryOptions: { queryKey: ["work-orders-pipeline", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["work-orders-pipeline", refreshKey],
+      refetchInterval: 10000,
+    } as any,
   });
 
   const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 200 } });

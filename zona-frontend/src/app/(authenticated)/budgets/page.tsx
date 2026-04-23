@@ -36,6 +36,7 @@ export default function BudgetsPage() {
     resource: "budgets",
     sorters: [{ field: "created_at", order: "desc" }],
     pagination: { pageSize: 100 },
+    queryOptions: { refetchInterval: 15000 }, // Los presupuestos no son tan críticos de ver al segundo
   });
 
   const allBudgets: any[] = result?.data || [];

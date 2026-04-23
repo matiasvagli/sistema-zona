@@ -24,6 +24,7 @@ export default function WorkOrdersPage() {
     resource: "work-orders",
     sorters: [{ field: "created_at", order: "desc" }],
     pagination: { pageSize: 200 },
+    queryOptions: { refetchInterval: 10000 },
   });
 
   const allData: any[] = result?.data || [];

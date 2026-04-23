@@ -44,7 +44,10 @@ export default function WorkOrderDetail() {
   const [estimateModal, setEstimateModal] = useState<{ open: boolean; taskId: number | null }>({ open: false, taskId: null });
   const [estimateDate, setEstimateDate] = useState<any>(null);
 
+  const [approvedReservations, setApprovedReservations] = useState<any[]>([]);
+
   const [matModal, setMatModal] = useState(false);
+  const [matSectorTask, setMatSectorTask] = useState<number | null>(null);
   const [matProduct, setMatProduct] = useState<number | null>(null);
   const [matQty, setMatQty] = useState<number>(1);
   const [matNotes, setMatNotes] = useState("");
@@ -82,7 +85,14 @@ export default function WorkOrderDetail() {
     }
   };
 
-  useEffect(() => { fetchOT(); }, [id]);
+  const fetchApprovedReservations = async () => {
+    try {
+      const { data } = await axiosInstance.get(`${API}/material-reservations/?work_order=${id}&status=aprobada`);
+      setApprovedReservations(Array.isArray(data) ? data : (data.results ?? []));
+    } catch { /* silently fail */ }
+  };
+
+  useEffect(() => { fetchOT(); fetchApprovedReservations(); }, [id]);
 
   const saveHeader = async () => {
     setSaving(true);
@@ -159,26 +169,22 @@ export default function WorkOrderDetail() {
   };
 
   const addMaterial = async () => {
-    if (!matProduct || !matQty) return;
+    if (!matSectorTask || !matProduct || !matQty) return;
     setSavingMat(true);
     try {
-      await axiosInstance.post(`${API}/work-order-materials/`, {
-        work_order: Number(id), product: matProduct, quantity: matQty, notes: matNotes,
+      const { data: reservation } = await axiosInstance.post(`${API}/material-reservations/`, {
+        sector_task: matSectorTask, product: matProduct, quantity: matQty, notes: matNotes,
       });
-      notification.success({ message: "Material agregado" });
-      setMatModal(false); setMatProduct(null); setMatQty(1); setMatNotes("");
-      fetchOT();
+      // Si es admin, aprobar directamente
+      if (identity?.is_staff || identity?.rol === 'admin' || identity?.rol === 'ceo') {
+        await axiosInstance.post(`${API}/material-reservations/${reservation.id}/approve/`);
+      }
+      notification.success({ message: identity?.is_staff || identity?.rol === 'admin' || identity?.rol === 'ceo' ? "Material asignado y aprobado" : "Solicitud enviada para aprobación" });
+      setMatModal(false); setMatSectorTask(null); setMatProduct(null); setMatQty(1); setMatNotes("");
+      fetchApprovedReservations();
     } catch (e: any) {
-      notification.error({ message: e?.response?.data?.detail || "Error al agregar material" });
+      notification.error({ message: e?.response?.data?.detail || "Error al asignar material" });
     } finally { setSavingMat(false); }
-  };
-
-  const removeMaterial = async (matId: number) => {
-    try {
-      await axiosInstance.delete(`${API}/work-order-materials/${matId}/`);
-      notification.success({ message: "Material eliminado" });
-      fetchOT();
-    } catch { notification.error({ message: "Error al eliminar" }); }
   };
 
   const uploadPhoto = async (file: File, category: "before" | "after") => {
@@ -261,10 +267,9 @@ export default function WorkOrderDetail() {
               }}
             />
 
-            <WorkOrderMaterials 
-              materials={ot.materials || []}
+            <WorkOrderMaterials
+              materials={approvedReservations}
               setMatModal={setMatModal}
-              removeMaterial={removeMaterial}
             />
 
           </Col>
@@ -334,13 +339,26 @@ export default function WorkOrderDetail() {
         title="Asignar Material"
         open={matModal}
         onOk={addMaterial}
-        onCancel={() => setMatModal(false)}
+        onCancel={() => { setMatModal(false); setMatSectorTask(null); setMatProduct(null); setMatQty(1); setMatNotes(""); }}
         confirmLoading={savingMat}
         okText="Asignar"
         cancelText="Cancelar"
         width={500}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "10px 0" }}>
+          <div>
+            <p style={{ marginBottom: 6 }}>Sector:</p>
+            <Select
+              placeholder="Seleccionar sector..."
+              style={{ width: "100%" }}
+              onChange={setMatSectorTask}
+              value={matSectorTask}
+            >
+              {(ot?.tasks || []).map((t: any) => (
+                <Option key={t.id} value={t.id}>{t.sector_name}</Option>
+              ))}
+            </Select>
+          </div>
           <div>
             <p style={{ marginBottom: 6 }}>Producto:</p>
             <Select
@@ -352,7 +370,7 @@ export default function WorkOrderDetail() {
               value={matProduct}
             >
               {allProducts.map((p) => (
-                <Option key={p.id} value={p.id}>{p.name} ({p.unit}) - Stock: {p.stock}</Option>
+                <Option key={p.id} value={p.id}>{p.name} ({p.unit}) - Stock: {p.stock_qty}</Option>
               ))}
             </Select>
           </div>

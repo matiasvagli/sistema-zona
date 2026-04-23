@@ -100,21 +100,30 @@ export default function InventarioPage() {
   const { result: productsResult, query: productsQuery } = useList({
     resource: "products",
     pagination: { pageSize: 500 },
-    queryOptions: { queryKey: ["products", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["products", refreshKey],
+      refetchInterval: 10000,
+    } as any,
   });
   const allProducts: any[] = productsResult?.data || [];
 
   const { result: reservationsResult, query: reservationsQuery } = useList({
     resource: "material-reservations",
     pagination: { pageSize: 200 },
-    queryOptions: { queryKey: ["material-reservations", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["material-reservations", refreshKey],
+      refetchInterval: 10000,
+    } as any,
   });
   const allReservations: any[] = reservationsResult?.data || [];
 
   const { result: purchaseReqsResult } = useList({
     resource: "purchase-requests",
     pagination: { pageSize: 200 },
-    queryOptions: { queryKey: ["purchase-requests", refreshKey] } as any,
+    queryOptions: { 
+      queryKey: ["purchase-requests", refreshKey],
+      refetchInterval: 10000,
+    } as any,
   });
   const allPurchaseReqs: any[] = purchaseReqsResult?.data || [];
 

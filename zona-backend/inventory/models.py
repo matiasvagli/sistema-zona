@@ -102,7 +102,6 @@ class MaterialReservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('sector_task', 'product')
         permissions = [
             ('approve_material_reservation', 'Puede aprobar/rechazar reservas de material'),
         ]

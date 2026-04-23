@@ -135,17 +135,27 @@ class MaterialReservationViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        product = serializer.validated_data['product']
+        product       = serializer.validated_data['product']
+        sector_task   = serializer.validated_data['sector_task']
         qty_requested = serializer.validated_data['quantity']
 
-        reserved = product.reservations.filter(status='pendiente').aggregate(
-            t=Sum('quantity')
-        )['t'] or Decimal('0')
-        available = product.stock_qty - reserved
+        # Bloquear solo si ya hay una pendiente para el mismo par (no tiene sentido duplicar)
+        if MaterialReservation.objects.filter(
+            sector_task=sector_task,
+            product=product,
+            status=MaterialReservation.Status.PENDIENTE,
+        ).exists():
+            return Response(
+                {'detail': 'Ya hay una solicitud pendiente para este material. Esperá que el admin la procese.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         reservation = serializer.save(requested_by=request.user)
-        data = MaterialReservationSerializer(reservation).data
 
+        reserved  = product.reservations.filter(status='pendiente').aggregate(t=Sum('quantity'))['t'] or Decimal('0')
+        available = product.stock_qty - reserved
+
+        data = MaterialReservationSerializer(reservation).data
         if qty_requested > available:
             data['warning'] = (
                 f"Stock disponible es {available} {product.unit} "
