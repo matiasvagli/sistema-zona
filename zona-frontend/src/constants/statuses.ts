@@ -1,5 +1,5 @@
 export type TaskStatus = "pendiente" | "en_proceso" | "completada" | "bloqueada";
-export type OTStatus   = "pendiente" | "en_proceso" | "pausada" | "completada" | "cancelada";
+export type OTStatus   = "pendiente" | "en_proceso" | "pausada" | "completada" | "entregada" | "cancelada";
 export type BudgetStatus = "borrador" | "aprobado" | "rechazado" | "facturado" | "vencido";
 
 export interface StatusConfig {
@@ -24,6 +24,7 @@ export const OT_STATUS: Record<OTStatus, StatusConfig> = {
   en_proceso: { color: "#1890ff", label: "En proceso" },
   pausada:    { color: "#fa8c16", label: "Pausada"    },
   completada: { color: "#52c41a", label: "Completada" },
+  entregada:  { color: "#7c3aed", label: "Entregada"  },
   cancelada:  { color: "#ff4d4f", label: "Cancelada"  },
 };
 

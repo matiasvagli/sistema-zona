@@ -34,12 +34,7 @@ export function FinishedWorksTab() {
   const allData: any[] = result?.data || [];
 
   const data = useMemo(() => {
-    // Primero filtramos solo las OTs terminadas (status 'completada' o 100% tareas listas)
-    let rows = allData.filter((r) => {
-      if (r.status === "completada") return true;
-      if (r.tasks && r.tasks.length > 0 && r.tasks.every((t: any) => t.status === "completada")) return true;
-      return false;
-    });
+    let rows = allData.filter((r) => r.status === "completada" || r.status === "entregada");
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       rows = rows.filter((r) =>

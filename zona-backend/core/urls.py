@@ -14,7 +14,7 @@ from clients.views import ClientViewSet
 from inventory.views import ProductViewSet, StockMovementViewSet, MaterialReservationViewSet, PurchaseRequestViewSet
 from finanzas.views import ExpenseViewSet, SupplierViewSet, SupplierInvoiceViewSet
 from budgets.views import BudgetViewSet, BudgetItemViewSet
-from work_orders.views import WorkOrderViewSet
+from work_orders.views import WorkOrderViewSet, WorkOrderNotificationViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
 from spaces.views import AdSpaceViewSet, SpaceRentalViewSet
 from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
@@ -31,6 +31,7 @@ router.register(r'purchase-requests', PurchaseRequestViewSet)
 router.register(r'budgets', BudgetViewSet)
 router.register(r'budget-items', BudgetItemViewSet)
 router.register(r'work-orders', WorkOrderViewSet)
+router.register(r'work-order-notifications', WorkOrderNotificationViewSet, basename='work-order-notification')
 router.register(r'sectors', SectorViewSet)
 router.register(r'sector-tasks', SectorTaskViewSet)
 router.register(r'ad-spaces', AdSpaceViewSet)

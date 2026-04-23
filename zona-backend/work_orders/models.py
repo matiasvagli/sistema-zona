@@ -7,6 +7,7 @@ class WorkOrder(models.Model):
         EN_PROCESO = 'en_proceso', 'En Proceso'
         PAUSADA = 'pausada', 'Pausada'
         COMPLETADA = 'completada', 'Completada'
+        ENTREGADA = 'entregada', 'Entregada'
         CANCELADA = 'cancelada', 'Cancelada'
 
     class Priority(models.TextChoices):
@@ -76,3 +77,24 @@ class WorkOrderPhoto(models.Model):
         return f"Foto {self.category} - {self.work_order.title}"
 
 
+class WorkOrderNotification(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='work_order_notifications'
+    )
+    work_order = models.ForeignKey(
+        WorkOrder, 
+        on_delete=models.CASCADE, 
+        related_name='notifications'
+    )
+    is_confirmed = models.BooleanField(default=False)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notificación OT-{self.work_order.id} para {self.user.username}"
+
+    class Meta:
+        unique_together = ('user', 'work_order')
+        ordering = ['-created_at']

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useList, useGetIdentity } from "@refinedev/core";
 import {
   Tag, Typography, Spin, Tooltip, Button, Progress,
-  notification, Modal, DatePicker, Input, InputNumber, Select, Tabs,
+  notification, Modal, DatePicker, Input, InputNumber, Select, Tabs, Popconfirm,
 } from "antd";
 import {
   ClockCircleOutlined, WarningOutlined, FireOutlined,
@@ -47,6 +47,8 @@ function WOTable({
   setViewNote,
   router,
   dimmed,
+  onDeliver,
+  deliveryLoading,
 }: any) {
   const COL_WIDTH = 170;
   const LEFT_WIDTH = 260;
@@ -191,6 +193,23 @@ function WOTable({
                         trailColor="#e2e8f0"
                       />
                     </div>
+                  )}
+                  {onDeliver && (
+                    <Popconfirm
+                      title="¿Marcar como entregada?"
+                      description="Confirma que esta OT fue entregada al cliente."
+                      onConfirm={() => onDeliver(wo.id)}
+                      okText="Entregar" cancelText="Cancelar"
+                      okButtonProps={{ style: { background: "#7c3aed", borderColor: "#7c3aed" } }}
+                    >
+                      <Button
+                        size="small"
+                        loading={deliveryLoading === wo.id}
+                        style={{ marginTop: 8, width: "100%", background: "#f5f3ff", borderColor: "#a78bfa", color: "#7c3aed", fontWeight: 600 }}
+                      >
+                        Marcar como entregada
+                      </Button>
+                    </Popconfirm>
                   )}
                 </td>
 
@@ -374,6 +393,20 @@ export default function PipelinePage() {
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [showFinished, setShowFinished] = useState(false);
+  const [deliveryLoading, setDeliveryLoading] = useState<number | null>(null);
+
+  const markDelivered = async (woId: number) => {
+    setDeliveryLoading(woId);
+    try {
+      await axiosInstance.post(`${API}/work-orders/${woId}/mark-delivered/`);
+      notification.success({ message: "OT marcada como entregada" });
+      refresh();
+    } catch (e: any) {
+      notification.error({ message: e?.response?.data?.detail || "No se pudo marcar como entregada" });
+    } finally {
+      setDeliveryLoading(null);
+    }
+  };
 
   const saveNotes = async () => {
     if (!notesModal.taskId) return;
@@ -405,7 +438,7 @@ export default function PipelinePage() {
   const { query: woQuery, result: woResult } = useList({
     resource: "work-orders",
     pagination: { pageSize: 200 },
-    filters: [{ field: "status__in", operator: "in", value: ["pendiente", "en_proceso", "pausada"] }],
+    filters: [{ field: "status__in", operator: "in", value: ["pendiente", "en_proceso", "pausada", "completada"] }],
     queryOptions: { queryKey: ["work-orders-pipeline", refreshKey] } as any,
   });
 
@@ -511,11 +544,8 @@ export default function PipelinePage() {
 
   const allWOs = workOrders.filter((wo) => taskMap[wo.id] && Object.keys(taskMap[wo.id]).length > 0);
 
-  // Split: OTs con TODAS las tasks completadas van a la sección "Finalizadas"
-  const finishedWOs = allWOs.filter((wo) => {
-    const wTasks = Object.values(taskMap[wo.id] || {});
-    return wTasks.length > 0 && (wTasks as any[]).every((t) => t.status === "completada");
-  });
+  // Split: OTs con producción completada (backend las marca automáticamente) → "Para entregar"
+  const finishedWOs = allWOs.filter((wo) => wo.status === "completada");
   const finishedIds = new Set(finishedWOs.map((wo) => wo.id));
 
   // Pipeline activo: excluir finalizadas y aplicar filtros
@@ -539,6 +569,8 @@ export default function PipelinePage() {
     setMatTaskId, setMatTaskSectorId, setMatModal, setEstimateModal, setEstimateDate,
     setNotesModal, setViewNote, router,
   };
+
+  const deliveryProps = { onDeliver: markDelivered, deliveryLoading };
 
   return (
     <div style={{ padding: "24px", background: "#f0f2f5", minHeight: "100vh" }}>
@@ -657,7 +689,7 @@ export default function PipelinePage() {
                     >
                       <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
                       <Text strong style={{ color: "#237804", fontSize: 14 }}>
-                        Para entregar / Entregados hoy ({finishedWOs.length})
+                        Para entregar ({finishedWOs.length})
                       </Text>
                       <DownOutlined
                         style={{
@@ -668,7 +700,7 @@ export default function PipelinePage() {
                       />
                     </div>
                     {showFinished && (
-                      <WOTable wos={finishedWOs} dimmed={true} {...sharedProps} />
+                      <WOTable wos={finishedWOs} dimmed={true} {...sharedProps} {...deliveryProps} />
                     )}
                   </div>
                 )}

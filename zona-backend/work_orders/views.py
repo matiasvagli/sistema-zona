@@ -3,8 +3,23 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import WorkOrder
-from .serializers import WorkOrderSerializer
+from django.utils import timezone
+from .models import WorkOrder, WorkOrderNotification
+from .serializers import WorkOrderSerializer, WorkOrderNotificationSerializer
+
+class WorkOrderNotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkOrderNotificationSerializer
+
+    def get_queryset(self):
+        return WorkOrderNotification.objects.filter(user=self.request.user, is_confirmed=False)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        notification = self.get_object()
+        notification.is_confirmed = True
+        notification.confirmed_at = timezone.now()
+        notification.save()
+        return Response({'status': 'confirmed'})
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
@@ -13,6 +28,18 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='mark-delivered')
+    def mark_delivered(self, request, pk=None):
+        wo = self.get_object()
+        if wo.status != WorkOrder.Status.COMPLETADA:
+            return Response(
+                {'detail': 'Solo se pueden entregar OTs con producción completada.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        wo.status = WorkOrder.Status.ENTREGADA
+        wo.save(update_fields=['status'])
+        return Response(self.get_serializer(wo).data)
 
     @action(detail=True, methods=['post'], url_path='upload-photo',
             parser_classes=[MultiPartParser, FormParser])

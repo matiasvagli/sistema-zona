@@ -57,7 +57,7 @@ export default function BudgetsPage() {
     try {
       await axiosInstance.post(`${API}/budgets/${id}/approve/`);
       notification.success({ message: "Presupuesto aprobado" });
-      refetch();
+      query.refetch();
     } catch (e: any) {
       console.error("Error approving budget:", e);
       const errorMsg = e?.response?.data?.detail || e?.response?.data?.error || "Error al aprobar";
@@ -209,7 +209,7 @@ export default function BudgetsPage() {
     try {
       await axiosInstance.post(`${API}/budgets/${id}/invoice/`);
       notification.success({ message: "Presupuesto facturado" });
-      refetch();
+      query.refetch();
     } catch {
       notification.error({ message: "Error al facturar" });
     }

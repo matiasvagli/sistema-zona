@@ -4,6 +4,7 @@ import { Authenticated } from "@refinedev/core";
 import { ThemedLayout } from "@refinedev/antd";
 import { Spin, Typography } from "antd";
 import { AppTitle } from "@/components/AppTitle";
+import { OTNotificationManager } from "@/components/notifications/OTNotificationManager";
 
 export default function AuthenticatedLayout({
   children,
@@ -30,6 +31,7 @@ export default function AuthenticatedLayout({
     >
       <ThemedLayout Title={AppTitle} Header={() => null}>
         {children}
+        <OTNotificationManager />
       </ThemedLayout>
     </Authenticated>
   );

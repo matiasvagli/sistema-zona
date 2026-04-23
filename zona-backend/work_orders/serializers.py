@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import WorkOrder, WorkOrderPhoto
+from .models import WorkOrder, WorkOrderPhoto, WorkOrderNotification
 from production.serializers import SectorTaskSerializer
 
 
@@ -24,3 +24,11 @@ class WorkOrderSerializer(serializers.ModelSerializer):
         model = WorkOrder
         fields = '__all__'
         read_only_fields = ('created_by', 'created_at')
+class WorkOrderNotificationSerializer(serializers.ModelSerializer):
+    work_order_title = serializers.ReadOnlyField(source='work_order.title')
+    work_order_priority = serializers.ReadOnlyField(source='work_order.priority')
+    
+    class Meta:
+        model = WorkOrderNotification
+        fields = ('id', 'work_order', 'work_order_title', 'work_order_priority', 'is_confirmed', 'confirmed_at', 'created_at')
+        read_only_fields = ('is_confirmed', 'confirmed_at', 'created_at')
