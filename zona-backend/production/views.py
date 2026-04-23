@@ -9,8 +9,9 @@ class SectorViewSet(viewsets.ModelViewSet):
     serializer_class = SectorSerializer
 
 class SectorTaskViewSet(viewsets.ModelViewSet):
-    queryset = SectorTask.objects.all()
+    queryset = SectorTask.objects.select_related('work_order', 'sector', 'assigned_to').all()
     serializer_class = SectorTaskSerializer
+    pagination_class = None
 
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):

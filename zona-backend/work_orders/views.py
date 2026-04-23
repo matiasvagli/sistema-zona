@@ -25,6 +25,7 @@ class WorkOrderNotificationViewSet(viewsets.ModelViewSet):
 class WorkOrderViewSet(viewsets.ModelViewSet):
     queryset = WorkOrder.objects.all()
     serializer_class = WorkOrderSerializer
+    pagination_class = None
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
