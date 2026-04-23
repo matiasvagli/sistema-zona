@@ -10,8 +10,8 @@ export default function SectorEdit({ params }: any) {
   const { formProps, saveButtonProps, id } = useForm();
   const sectorId = id || params?.id;
 
-  const { data: usersData } = useList({ resource: "users" });
-  const { data: membershipsData, refetch } = useList({
+  const { result: usersResult } = useList({ resource: "users" });
+  const { result: membershipsResult, query: membershipsQuery } = useList({
     resource: "sector-memberships",
     filters: [{ field: "sector", operator: "eq", value: sectorId }],
     queryOptions: { enabled: !!sectorId },
@@ -39,7 +39,7 @@ export default function SectorEdit({ params }: any) {
       onSuccess: () => {
         message.success("Usuario agregado al sector");
         setSelectedUser(null);
-        refetch();
+        membershipsQuery.refetch();
       },
       onError: (err) => message.error("Error al agregar usuario: " + err.message)
     });
@@ -63,7 +63,7 @@ export default function SectorEdit({ params }: any) {
     }, {
       onSuccess: () => {
         message.success("Usuario removido del sector");
-        refetch();
+        membershipsQuery.refetch();
       }
     });
   };
@@ -99,7 +99,7 @@ export default function SectorEdit({ params }: any) {
             placeholder="Seleccionar Usuario"
             value={selectedUser}
             onChange={setSelectedUser}
-            options={usersData?.data?.map((u: { id: number; username: string }) => ({ value: u.id, label: u.username })) || []}
+            options={usersResult?.data?.map((u: any) => ({ value: u.id, label: u.username })) || []}
           />
           <Button type="primary" onClick={handleAddUser} disabled={!selectedUser}>
             Agregar Usuario
@@ -107,7 +107,7 @@ export default function SectorEdit({ params }: any) {
         </Space>
 
         <Table 
-          dataSource={membershipsData?.data || []} 
+          dataSource={membershipsResult?.data || []} 
           rowKey="id"
           pagination={false}
         >

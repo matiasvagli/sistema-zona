@@ -548,8 +548,8 @@ export default function PipelinePage() {
   const finishedWOs = allWOs.filter((wo) => wo.status === "completada");
   const finishedIds = new Set(finishedWOs.map((wo) => wo.id));
 
-  // Pipeline activo: solo estados activos (excluir completada/entregada/cancelada)
-  let pipelineWOs = allWOs.filter((wo) => !finishedIds.has(wo.id) && wo.status !== "entregada" && wo.status !== "cancelada");
+  // Pipeline activo: solo estados activos (excluir completada/entregada/facturada/cancelada)
+  let pipelineWOs = allWOs.filter((wo) => !finishedIds.has(wo.id) && wo.status !== "entregada" && wo.status !== "facturada" && wo.status !== "cancelada");
   if (filterPriority) pipelineWOs = pipelineWOs.filter((wo) => wo.priority === filterPriority);
   if (filterStatus)   pipelineWOs = pipelineWOs.filter((wo) => wo.status === filterStatus);
 

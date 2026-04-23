@@ -61,6 +61,9 @@ class SectorTask(models.Model):
     notes = models.TextField(blank=True)
     photos = models.JSONField(default=list, blank=True)
 
+    class Meta:
+        ordering = ['-id']
+
     def clean(self):
         # Regla de negocio central: 
         # Si pasa a en_proceso, verificar que la dependencia esté completada

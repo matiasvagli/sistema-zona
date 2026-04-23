@@ -5,6 +5,7 @@ import { ThemedLayout } from "@refinedev/antd";
 import { Spin, Typography } from "antd";
 import { AppTitle } from "@/components/AppTitle";
 import { OTNotificationManager } from "@/components/notifications/OTNotificationManager";
+import { PendingReservationsBanner } from "@/components/notifications/PendingReservationsBanner";
 
 export default function AuthenticatedLayout({
   children,
@@ -30,6 +31,7 @@ export default function AuthenticatedLayout({
         }
     >
       <ThemedLayout Title={AppTitle} Header={() => null}>
+        <PendingReservationsBanner />
         {children}
         <OTNotificationManager />
       </ThemedLayout>

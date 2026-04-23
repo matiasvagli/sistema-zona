@@ -30,5 +30,5 @@ class WorkOrderNotificationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = WorkOrderNotification
-        fields = ('id', 'work_order', 'work_order_title', 'work_order_priority', 'is_confirmed', 'confirmed_at', 'created_at')
+        fields = ('id', 'work_order', 'work_order_title', 'work_order_priority', 'kind', 'is_confirmed', 'confirmed_at', 'created_at')
         read_only_fields = ('is_confirmed', 'confirmed_at', 'created_at')

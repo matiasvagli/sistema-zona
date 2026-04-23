@@ -12,6 +12,9 @@ class User(AbstractUser):
         related_name='users'
     )
     last_seen = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['username']
 
     def __str__(self):
         return self.username

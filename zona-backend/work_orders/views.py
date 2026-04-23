@@ -1,4 +1,5 @@
 import os
+from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -40,6 +41,20 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             )
         wo.status = WorkOrder.Status.ENTREGADA
         wo.save(update_fields=['status'])
+
+        # Notificar a todos los admins/CEO/staff
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        admins = User.objects.filter(
+            models.Q(is_staff=True) | models.Q(perfil__rol__in=['admin', 'ceo'])
+        ).distinct()
+        for admin in admins:
+            WorkOrderNotification.objects.get_or_create(
+                user=admin,
+                work_order=wo,
+                kind=WorkOrderNotification.Kind.LISTA_PARA_FACTURAR,
+            )
+
         return Response(self.get_serializer(wo).data)
 
     @action(detail=True, methods=['post'], url_path='upload-photo',

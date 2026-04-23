@@ -8,6 +8,7 @@ class WorkOrder(models.Model):
         PAUSADA = 'pausada', 'Pausada'
         COMPLETADA = 'completada', 'Completada'
         ENTREGADA = 'entregada', 'Entregada'
+        FACTURADA = 'facturada', 'Facturada'
         CANCELADA = 'cancelada', 'Cancelada'
 
     class Priority(models.TextChoices):
@@ -78,23 +79,28 @@ class WorkOrderPhoto(models.Model):
 
 
 class WorkOrderNotification(models.Model):
+    class Kind(models.TextChoices):
+        NUEVA_OT            = 'nueva_ot',            'Nueva OT'
+        LISTA_PARA_FACTURAR = 'lista_para_facturar', 'Lista para facturar'
+
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.CASCADE, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
         related_name='work_order_notifications'
     )
     work_order = models.ForeignKey(
-        WorkOrder, 
-        on_delete=models.CASCADE, 
+        WorkOrder,
+        on_delete=models.CASCADE,
         related_name='notifications'
     )
+    kind = models.CharField(max_length=30, choices=Kind.choices, default=Kind.NUEVA_OT)
     is_confirmed = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Notificación OT-{self.work_order.id} para {self.user.username}"
+        return f"Notificación [{self.kind}] OT-{self.work_order.id} para {self.user.username}"
 
     class Meta:
-        unique_together = ('user', 'work_order')
+        unique_together = ('user', 'work_order', 'kind')
         ordering = ['-created_at']

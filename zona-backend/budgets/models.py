@@ -36,6 +36,9 @@ class Budget(models.Model):
     issue_date = models.DateField(auto_now_add=True, verbose_name="Fecha de emisión")
     expiry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de vencimiento")
     notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
 
     @property
     def total_amount(self):

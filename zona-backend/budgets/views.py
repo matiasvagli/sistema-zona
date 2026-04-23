@@ -63,6 +63,11 @@ class BudgetViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def invoice(self, request, pk=None):
         budget = self.get_object()
+        if budget.status == Budget.Status.FACTURADO:
+            return Response({'detail': 'Este presupuesto ya fue facturado.'}, status=status.HTTP_400_BAD_REQUEST)
         budget.status = Budget.Status.FACTURADO
-        budget.save()
+        budget.save(update_fields=['status'])
+        if budget.work_order_id:
+            from work_orders.models import WorkOrder
+            WorkOrder.objects.filter(pk=budget.work_order_id).update(status=WorkOrder.Status.FACTURADA)
         return Response(self.get_serializer(budget).data)
