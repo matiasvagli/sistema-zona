@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { Create, useForm } from "@refinedev/antd";
 import { Form, Input, InputNumber, Checkbox, Card, Row, Col, Space, Typography, Divider } from "antd";
 import { 
@@ -14,6 +16,7 @@ export default function SectorCreate() {
   const { formProps, saveButtonProps } = useForm();
 
   return (
+    <AdminGuard>
     <Create saveButtonProps={saveButtonProps} title="Registrar Nuevo Sector de Producción">
       <Row justify="center">
         <Col xs={24} md={16} lg={12}>
@@ -70,5 +73,6 @@ export default function SectorCreate() {
         </Col>
       </Row>
     </Create>
+    </AdminGuard>
   );
 }

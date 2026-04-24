@@ -4,6 +4,18 @@ from rest_framework.response import Response
 from .models import Sector, SectorTask
 from .serializers import SectorSerializer, SectorTaskSerializer
 
+
+def _puede_editar_sector(user, sector_id):
+    """True si el usuario puede editar tareas del sector dado."""
+    rol = getattr(getattr(user, 'perfil', None), 'rol', None)
+    if user.is_staff or rol in ('ceo', 'admin'):
+        return True
+    from accounts.models import SectorMembership
+    return SectorMembership.objects.filter(
+        usuario=user, sector_id=sector_id, puede_editar=True
+    ).exists()
+
+
 class SectorViewSet(viewsets.ModelViewSet):
     queryset = Sector.objects.all()
     serializer_class = SectorSerializer
@@ -16,6 +28,8 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         task = self.get_object()
+        if not _puede_editar_sector(request.user, task.sector_id):
+            return Response({'detail': 'No tenés permiso de edición en este sector.'}, status=status.HTTP_403_FORBIDDEN)
         task.status = SectorTask.Status.EN_PROCESO
         try:
             task.save()
@@ -26,6 +40,8 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         task = self.get_object()
+        if not _puede_editar_sector(request.user, task.sector_id):
+            return Response({'detail': 'No tenés permiso de edición en este sector.'}, status=status.HTTP_403_FORBIDDEN)
         task.status = SectorTask.Status.COMPLETADA
         task.save()
         self._notificar_sectores_pendientes(task, request.user)
@@ -86,6 +102,8 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def block(self, request, pk=None):
         task = self.get_object()
+        if not _puede_editar_sector(request.user, task.sector_id):
+            return Response({'detail': 'No tenés permiso de edición en este sector.'}, status=status.HTTP_403_FORBIDDEN)
         task.status = SectorTask.Status.BLOQUEADA
         task.save()
         return Response(self.get_serializer(task).data)
@@ -93,6 +111,8 @@ class SectorTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='set-estimate')
     def set_estimate(self, request, pk=None):
         task = self.get_object()
+        if not _puede_editar_sector(request.user, task.sector_id):
+            return Response({'detail': 'No tenés permiso de edición en este sector.'}, status=status.HTTP_403_FORBIDDEN)
         estimate = request.data.get('estimated_finish')
         if not estimate:
             return Response({'error': 'Falta la fecha estimada'}, status=status.HTTP_400_BAD_REQUEST)

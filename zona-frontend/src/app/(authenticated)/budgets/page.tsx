@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useList } from "@refinedev/core";
@@ -217,6 +219,7 @@ export default function BudgetsPage() {
   };
 
   return (
+    <AdminGuard>
     <div style={{ padding: "32px", background: "#f1f5f9", minHeight: "100vh" }}>
       {/* Header Section */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
@@ -365,5 +368,6 @@ export default function BudgetsPage() {
         totalAmount={billingModal.totalAmount}
       />
     </div>
+    </AdminGuard>
   );
 }

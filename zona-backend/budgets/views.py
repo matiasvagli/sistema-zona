@@ -1,28 +1,18 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from accounts.permissions import IsAdminUser
 from .models import Budget, BudgetItem
 from .serializers import BudgetSerializer, BudgetItemSerializer
 
-
-class IsAdminOrCEO(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        # Si es staff (superusuario) o tiene rol admin/ceo en su perfil
-        return (
-            request.user.is_staff or 
-            getattr(request.user.perfil, 'rol', 'empleado') in ['admin', 'ceo']
-        )
-
 class BudgetItemViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminOrCEO]
+    permission_classes = [IsAdminUser]
     queryset = BudgetItem.objects.select_related('product').all()
     serializer_class = BudgetItemSerializer
 
 class BudgetViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAdminOrCEO]
-    queryset = Budget.objects.select_related('client').prefetch_related('items').all()
+    permission_classes = [IsAdminUser]
+    queryset = Budget.objects.select_related('client').prefetch_related('items__product').all()
     serializer_class = BudgetSerializer
 
     def perform_create(self, serializer):

@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, Checkbox, Row, Col, Card, Typography, Space, Divider } from "antd";
 import { 
@@ -18,6 +20,7 @@ export default function ClientEdit() {
   const { formProps, saveButtonProps } = useForm();
 
   return (
+    <AdminGuard>
     <Edit saveButtonProps={saveButtonProps} title="Editar Información del Cliente">
       <Form {...formProps} layout="vertical">
         <Row gutter={24}>
@@ -96,5 +99,6 @@ export default function ClientEdit() {
         </Row>
       </Form>
     </Edit>
+    </AdminGuard>
   );
 }

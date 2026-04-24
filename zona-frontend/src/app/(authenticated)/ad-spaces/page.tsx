@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { List, useTable } from "@refinedev/antd";
 import { Table, Tag } from "antd";
 
@@ -7,6 +9,7 @@ export default function AdSpaceList() {
   const { tableProps } = useTable();
 
   return (
+    <AdminGuard>
     <List>
       <Table {...tableProps} rowKey="id">
         <Table.Column dataIndex="id" title="ID" />
@@ -20,5 +23,6 @@ export default function AdSpaceList() {
         />
       </Table>
     </List>
+    </AdminGuard>
   );
 }

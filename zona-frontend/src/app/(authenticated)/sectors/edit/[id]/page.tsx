@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { Edit, useForm } from "@refinedev/antd";
 import { API_URL as API } from "@/config/api";
 import { Form, Input, InputNumber, Checkbox, Table, Button, Space, message, Select, Card } from "antd";
@@ -69,6 +71,7 @@ export default function SectorEdit({ params }: any) {
   };
 
   return (
+    <AdminGuard>
     <Space direction="vertical" style={{ width: "100%" }} size="large">
       <Edit saveButtonProps={saveButtonProps} title="Editar Sector">
         <Form {...formProps} layout="vertical">
@@ -159,5 +162,6 @@ export default function SectorEdit({ params }: any) {
         </Table>
       </Card>
     </Space>
+    </AdminGuard>
   );
 }

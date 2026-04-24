@@ -6,6 +6,7 @@ import { Spin, Typography } from "antd";
 import { AppTitle } from "@/components/AppTitle";
 import { OTNotificationManager } from "@/components/notifications/OTNotificationManager";
 import { PendingReservationsBanner } from "@/components/notifications/PendingReservationsBanner";
+import { NotificationToast } from "@/components/notifications/NotificationToast";
 
 export default function AuthenticatedLayout({
   children,
@@ -34,6 +35,7 @@ export default function AuthenticatedLayout({
         <PendingReservationsBanner />
         {children}
         <OTNotificationManager />
+        <NotificationToast />
       </ThemedLayout>
     </Authenticated>
   );

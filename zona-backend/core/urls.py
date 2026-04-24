@@ -53,6 +53,7 @@ urlpatterns = [
     # API
     path('api/v1/', include(router.urls)),
     path('api/v1/', include('chat.urls')),
+    path('api/v1/notifications/', include('notifications.urls')),
 
     # Docs
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

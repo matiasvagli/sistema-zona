@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
@@ -115,6 +117,7 @@ export default function BudgetDetailPage() {
   ];
 
   return (
+    <AdminGuard>
     <div style={{ padding: "24px 32px", background: "#f8fafc", minHeight: "100%" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
@@ -264,5 +267,6 @@ export default function BudgetDetailPage() {
         </Col>
       </Row>
     </div>
+    </AdminGuard>
   );
 }

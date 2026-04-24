@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { Create, useForm, useSelect } from "@refinedev/antd";
 import { Form, Input, Select, Checkbox, Row, Col, Card, Typography, Divider, Space } from "antd";
 import { 
@@ -23,6 +25,7 @@ export default function UserCreate() {
   });
 
   return (
+    <AdminGuard>
     <Create saveButtonProps={saveButtonProps} title="Registrar Nuevo Usuario">
       <Form {...formProps} layout="vertical">
         <Row gutter={24}>
@@ -121,5 +124,6 @@ export default function UserCreate() {
         </Row>
       </Form>
     </Create>
+    </AdminGuard>
   );
 }

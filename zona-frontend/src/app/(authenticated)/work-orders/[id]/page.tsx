@@ -270,6 +270,7 @@ export default function WorkOrderDetail() {
             <WorkOrderMaterials
               materials={approvedReservations}
               setMatModal={setMatModal}
+              canAdd={!!(identity?.is_staff || identity?.rol === 'admin' || identity?.rol === 'ceo')}
             />
 
           </Col>

@@ -1,6 +1,8 @@
 "use client";
 
-import { Edit, useForm, useSelect } from "@refinedev/antd";
+import { AdminGuard } from "@/components/AdminGuard";
+
+import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, Select, Checkbox, Row, Col, Card, Typography, Divider, Space, Switch, Table, notification } from "antd";
 import { useParams } from "next/navigation";
 import { useList } from "@refinedev/core";
@@ -18,12 +20,6 @@ export default function UserEdit() {
   const { id: userId } = useParams<{ id: string }>();
   const { formProps, saveButtonProps } = useForm();
   const [savingMembership, setSavingMembership] = useState<number | null>(null);
-
-  const { selectProps: sectorSelectProps } = useSelect({
-    resource: "sectors",
-    optionLabel: "name",
-    optionValue: "id",
-  });
 
   const { result: sectorsResult } = useList({
     resource: "sectors",
@@ -118,7 +114,6 @@ export default function UserEdit() {
           <Switch
             size="small"
             checked={!!m?.puede_editar}
-            disabled={!m?.puede_ver}
             loading={savingMembership === sector.id}
             onChange={(v) => togglePermission(sector.id, "puede_editar", v)}
           />
@@ -135,7 +130,6 @@ export default function UserEdit() {
           <Switch
             size="small"
             checked={!!m?.puede_crear}
-            disabled={!m?.puede_ver}
             loading={savingMembership === sector.id}
             onChange={(v) => togglePermission(sector.id, "puede_crear", v)}
           />
@@ -152,7 +146,6 @@ export default function UserEdit() {
           <Switch
             size="small"
             checked={!!m?.puede_eliminar}
-            disabled={!m?.puede_ver}
             loading={savingMembership === sector.id}
             onChange={(v) => togglePermission(sector.id, "puede_eliminar", v)}
           />
@@ -162,6 +155,7 @@ export default function UserEdit() {
   ];
 
   return (
+    <AdminGuard>
     <>
       <Edit saveButtonProps={saveButtonProps} title="Editar Perfil de Usuario">
         <Form {...formProps} layout="vertical">
@@ -219,10 +213,10 @@ export default function UserEdit() {
 
                 <Form.Item label="Sector Primario" name="sector">
                   <Select
-                    {...sectorSelectProps}
                     allowClear
                     placeholder="Seleccionar sector..."
                     suffixIcon={<AppstoreOutlined />}
+                    options={sectors.map((s: any) => ({ value: s.id, label: s.name }))}
                   />
                 </Form.Item>
 
@@ -272,5 +266,6 @@ export default function UserEdit() {
         />
       </Card>
     </>
+    </AdminGuard>
   );
 }

@@ -4,15 +4,16 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import User, Perfil, SectorMembership
 from .serializers import UserSerializer, SectorMembershipSerializer
+from .permissions import IsAdminUser
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'change_role']:
-            return [IsAuthenticated()] # Podría ser IsAdminUser si queremos restringir más
-        return [IsAuthenticated()]
+        if self.action in ('me', 'mis_permisos', 'list', 'retrieve'):
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -57,5 +58,5 @@ class UserViewSet(viewsets.ModelViewSet):
 class SectorMembershipViewSet(viewsets.ModelViewSet):
     queryset = SectorMembership.objects.all()
     serializer_class = SectorMembershipSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
     filterset_fields = ['usuario', 'sector']

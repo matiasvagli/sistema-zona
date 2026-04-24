@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useList } from "@refinedev/core";
@@ -107,6 +109,7 @@ export default function BudgetCreatePage() {
   };
 
   return (
+    <AdminGuard>
     <div style={{ background: "#f0f2f5", minHeight: "100%" }}>
 
       {/* ── HEADER BAND ─────────────────────────────────────────── */}
@@ -473,5 +476,6 @@ export default function BudgetCreatePage() {
         </Form>
       </div>
     </div>
+    </AdminGuard>
   );
 }

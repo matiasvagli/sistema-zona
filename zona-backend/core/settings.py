@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'employees',
     'chat',
     'finanzas',
+    'notifications',
 ]
 
 MIDDLEWARE = [

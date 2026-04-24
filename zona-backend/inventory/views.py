@@ -6,12 +6,9 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from accounts.permissions import is_admin
 from .models import Product, StockMovement, MaterialReservation, PurchaseRequest
 from .serializers import ProductSerializer, StockMovementSerializer, MaterialReservationSerializer, PurchaseRequestSerializer
-
-
-def _is_admin(user):
-    return user.is_staff or (hasattr(user, 'perfil') and user.perfil.rol in ('admin', 'ceo'))
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -69,7 +66,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             )
         )
         user = self.request.user
-        if not _is_admin(user):
+        if not is_admin(user):
             sector_ids = set(user.sector_memberships.values_list('sector_id', flat=True))
             if user.sector_id:
                 sector_ids.add(user.sector_id)
@@ -84,7 +81,7 @@ class StockMovementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if not _is_admin(user):
+        if not is_admin(user):
             qty = serializer.validated_data.get('qty', 0)
             if qty <= 0:
                 raise ValidationError({"qty": "Solo podés registrar ingresos de material (cantidad positiva)."})
@@ -243,7 +240,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def mark_ordered(self, request, pk=None):
         pr = self.get_object()
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         if pr.status != PurchaseRequest.Status.PENDIENTE:
             return Response({'detail': 'Solo se puede marcar como "en compra" desde estado pendiente.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -258,7 +255,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     def receive(self, request, pk=None):
         """Marca como recibido y crea el StockMovement correspondiente."""
         pr = self.get_object()
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         if pr.status not in (PurchaseRequest.Status.PENDIENTE, PurchaseRequest.Status.EN_COMPRA):
             return Response({'detail': 'Este pedido ya fue procesado.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -295,7 +292,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         pr = self.get_object()
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         if pr.status not in (PurchaseRequest.Status.PENDIENTE, PurchaseRequest.Status.EN_COMPRA):
             return Response({'detail': 'Este pedido ya fue procesado.'}, status=status.HTTP_400_BAD_REQUEST)

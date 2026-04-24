@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import React, { useState, useCallback } from "react";
 import { useGetIdentity, useList } from "@refinedev/core";
 import {
@@ -427,6 +429,7 @@ export default function ProveedoresPage() {
   const supplierOptions = suppliers.map(s => ({ value: s.id, label: s.name }));
 
   return (
+    <AdminGuard>
     <div style={{ padding: 24, background: "#f0f2f5", minHeight: "100vh" }}>
 
       {/* Header */}
@@ -744,5 +747,6 @@ export default function ProveedoresPage() {
         </Form>
       </Modal>
     </div>
+    </AdminGuard>
   );
 }

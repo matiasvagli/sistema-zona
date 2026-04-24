@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { List, useTable, EditButton, ShowButton, DeleteButton } from "@refinedev/antd";
 import { Table, Space } from "antd";
 
@@ -9,6 +11,7 @@ export default function ClientList() {
   });
 
   return (
+    <AdminGuard>
     <List>
       <Table {...tableProps} rowKey="id">
         <Table.Column dataIndex="id" title="ID" />
@@ -29,5 +32,6 @@ export default function ClientList() {
         />
       </Table>
     </List>
+    </AdminGuard>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { Create, useForm } from "@refinedev/antd";
 import { Form, Input, Checkbox, Row, Col, Card, Typography, Space, Divider } from "antd";
 import { 
@@ -18,6 +20,7 @@ export default function ClientCreate() {
   const { formProps, saveButtonProps } = useForm();
 
   return (
+    <AdminGuard>
     <Create saveButtonProps={saveButtonProps} title="Registrar Nuevo Cliente">
       <Form {...formProps} layout="vertical">
         <Row gutter={24}>
@@ -104,5 +107,6 @@ export default function ClientCreate() {
         </Row>
       </Form>
     </Create>
+    </AdminGuard>
   );
 }

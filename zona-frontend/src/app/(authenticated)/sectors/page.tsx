@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminGuard } from "@/components/AdminGuard";
+
 import { List, useTable, EditButton, DeleteButton } from "@refinedev/antd";
 import { Table, Space } from "antd";
 
@@ -9,6 +11,7 @@ export default function SectorList() {
   });
 
   return (
+    <AdminGuard>
     <List title="Gestión de Sectores">
       <Table {...tableProps} rowKey="id">
         <Table.Column dataIndex="id" title="ID" />
@@ -26,5 +29,6 @@ export default function SectorList() {
         />
       </Table>
     </List>
+    </AdminGuard>
   );
 }

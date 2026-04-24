@@ -1,5 +1,5 @@
 from decimal import Decimal
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db.models import F
@@ -183,25 +183,24 @@ def update_product_stock(sender, instance, created, **kwargs):
     if not created:
         return
 
-    product = Product.objects.get(pk=instance.product_id)
+    with transaction.atomic():
+        product = Product.objects.select_for_update().get(pk=instance.product_id)
 
-    if instance.qty > 0 and instance.purchase_price is not None:
-        # Ingreso con precio → recalcular promedio ponderado
-        old_qty = max(product.stock_qty, Decimal('0'))
-        old_price = product.unit_price or Decimal('0')
-        total_qty = old_qty + instance.qty
-        new_avg = (old_price * old_qty + instance.purchase_price * instance.qty) / total_qty
-        Product.objects.filter(pk=instance.product_id).update(
-            stock_qty=F('stock_qty') + instance.qty,
-            unit_price=new_avg,
-        )
-    else:
-        Product.objects.filter(pk=instance.product_id).update(
-            stock_qty=F('stock_qty') + instance.qty
-        )
+        if instance.qty > 0 and instance.purchase_price is not None:
+            old_qty = max(product.stock_qty, Decimal('0'))
+            old_price = product.unit_price or Decimal('0')
+            total_qty = old_qty + instance.qty
+            new_avg = (old_price * old_qty + instance.purchase_price * instance.qty) / total_qty
+            Product.objects.filter(pk=instance.product_id).update(
+                stock_qty=F('stock_qty') + instance.qty,
+                unit_price=new_avg,
+            )
+        else:
+            Product.objects.filter(pk=instance.product_id).update(
+                stock_qty=F('stock_qty') + instance.qty
+            )
 
-    # Egreso: snapshot del precio promedio actual para poder calcular costo de OT
-    if instance.qty < 0 and instance.unit_price_snapshot is None and product.unit_price:
-        StockMovement.objects.filter(pk=instance.pk).update(
-            unit_price_snapshot=product.unit_price
-        )
+        if instance.qty < 0 and instance.unit_price_snapshot is None and product.unit_price:
+            StockMovement.objects.filter(pk=instance.pk).update(
+                unit_price_snapshot=product.unit_price
+            )

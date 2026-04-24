@@ -9,11 +9,13 @@ const { Text } = Typography;
 interface WorkOrderMaterialsProps {
   materials: any[];
   setMatModal: (val: boolean) => void;
+  canAdd?: boolean;
 }
 
 export const WorkOrderMaterials: React.FC<WorkOrderMaterialsProps> = ({
   materials,
   setMatModal,
+  canAdd = false,
 }) => {
   return (
     <div style={{
@@ -29,9 +31,11 @@ export const WorkOrderMaterials: React.FC<WorkOrderMaterialsProps> = ({
           </div>
           <Text strong style={{ fontSize: 15, color: "#0f172a" }}>Materiales Asignados</Text>
         </div>
-        <Button size="small" icon={<PlusOutlined />} onClick={() => setMatModal(true)} style={{ borderRadius: 8 }}>
-          Agregar
-        </Button>
+        {canAdd && (
+          <Button size="small" icon={<PlusOutlined />} onClick={() => setMatModal(true)} style={{ borderRadius: 8 }}>
+            Agregar
+          </Button>
+        )}
       </div>
 
       <div style={{ padding: "24px 28px" }}>

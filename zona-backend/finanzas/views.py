@@ -5,13 +5,10 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
+from accounts.permissions import is_admin
 from .models import Expense, Supplier, SupplierInvoice
 from .serializers import ExpenseSerializer, SupplierSerializer, SupplierInvoiceSerializer
 from inventory.models import StockMovement
-
-
-def _is_admin(user):
-    return user.is_staff or (hasattr(user, 'perfil') and user.perfil.rol in ('admin', 'ceo'))
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
@@ -32,7 +29,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         serializer.save(registered_by=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
 
         insumo_product_id      = request.data.get('insumo_product_id')
@@ -92,18 +89,18 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def update(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], url_path='resumen-ot/(?P<work_order_id>[^/.]+)')
     def resumen_ot(self, request, work_order_id=None):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
 
         from work_orders.models import WorkOrder
@@ -144,17 +141,17 @@ class SupplierViewSet(viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
 
     def create(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
@@ -181,24 +178,24 @@ class SupplierInvoiceViewSet(viewsets.ModelViewSet):
         serializer.save(registered_by=self.request.user)
 
     def create(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().create(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):
         invoice = self.get_object()
-        if not _is_admin(request.user):
+        if not is_admin(request.user):
             return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
         if invoice.status == SupplierInvoice.Status.PAGADA:
             return Response({'detail': 'La factura ya está marcada como pagada.'}, status=status.HTTP_400_BAD_REQUEST)

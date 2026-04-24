@@ -16,7 +16,9 @@ class SectorTaskSerializer(serializers.ModelSerializer):
 
     def get_reservations(self, obj):
         from inventory.serializers import MaterialReservationSerializer
-        return MaterialReservationSerializer(obj.reservations.all(), many=True).data
+        return MaterialReservationSerializer(
+            obj.reservations.all(), many=True, context=self.context
+        ).data
 
     class Meta:
         model = SectorTask
