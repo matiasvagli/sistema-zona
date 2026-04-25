@@ -176,7 +176,8 @@ SIMPLE_JWT = {
 }
 
 # CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = True  # Ajustar en producción
+_cors_origins = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000')
+CORS_ALLOWED_ORIGINS = [s.strip() for s in _cors_origins.split(',')]
 
 # Spectacular Configuration
 SPECTACULAR_SETTINGS = {
