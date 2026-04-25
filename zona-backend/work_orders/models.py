@@ -42,9 +42,6 @@ class WorkOrder(models.Model):
     )
     due_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
-    photos = models.JSONField(default=list, blank=True, help_text="Lista de URLs (Legacy)")
-    photos_before = models.JSONField(default=list, blank=True, help_text="Fotos de diseño / antes de producción (Legacy)")
-    photos_after  = models.JSONField(default=list, blank=True, help_text="Fotos de trabajo terminado (Legacy)")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

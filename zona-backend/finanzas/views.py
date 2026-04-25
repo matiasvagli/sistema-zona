@@ -105,13 +105,14 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
         from work_orders.models import WorkOrder
         try:
-            ot = WorkOrder.objects.prefetch_related('budgets_linked__items').get(pk=work_order_id)
+            ot = WorkOrder.objects.select_related('budget').prefetch_related('budget__items').get(pk=work_order_id)
         except WorkOrder.DoesNotExist:
             return Response({'detail': 'OT no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
         income = Decimal('0')
-        for budget in ot.budgets_linked.filter(status__in=('aprobado', 'facturado')):
-            income += budget.total_amount
+        linked_budget = getattr(ot, 'budget', None)
+        if linked_budget and linked_budget.status in ('aprobado', 'facturado'):
+            income += linked_budget.total_amount
 
         movements = StockMovement.objects.filter(
             reservation__sector_task__work_order_id=work_order_id,

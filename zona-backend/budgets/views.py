@@ -12,7 +12,7 @@ class BudgetItemViewSet(viewsets.ModelViewSet):
 
 class BudgetViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
-    queryset = Budget.objects.select_related('client').prefetch_related('items__product').all()
+    queryset = Budget.objects.select_related('client', 'work_order_assigned').prefetch_related('items__product').all()
     serializer_class = BudgetSerializer
 
     def perform_create(self, serializer):
@@ -29,9 +29,10 @@ class BudgetViewSet(viewsets.ModelViewSet):
     def create_work_order(self, request, pk=None):
         budget = self.get_object()
 
-        if budget.work_order_id:
+        existing_wo = getattr(budget, 'work_order_assigned', None)
+        if existing_wo:
             return Response(
-                {'detail': f'Este presupuesto ya tiene una OT asociada (#{budget.work_order_id}).'},
+                {'detail': f'Este presupuesto ya tiene una OT asociada (#{existing_wo.id}).'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -46,8 +47,6 @@ class BudgetViewSet(viewsets.ModelViewSet):
             budget=budget,
             created_by=request.user,
         )
-        budget.work_order = wo
-        budget.save(update_fields=['work_order'])
         return Response(WorkOrderSerializer(wo).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -57,7 +56,8 @@ class BudgetViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Este presupuesto ya fue facturado.'}, status=status.HTTP_400_BAD_REQUEST)
         budget.status = Budget.Status.FACTURADO
         budget.save(update_fields=['status'])
-        if budget.work_order_id:
+        wo = getattr(budget, 'work_order_assigned', None)
+        if wo:
             from work_orders.models import WorkOrder
-            WorkOrder.objects.filter(pk=budget.work_order_id).update(status=WorkOrder.Status.FACTURADA)
+            WorkOrder.objects.filter(pk=wo.id).update(status=WorkOrder.Status.FACTURADA)
         return Response(self.get_serializer(budget).data)

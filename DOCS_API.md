@@ -38,19 +38,37 @@ A continuación se detallan los recursos disponibles en la API. Todos los endpoi
 ### 🤝 Gestión de Clientes
 - `/clients/`: Directorio central de clientes y prospectos.
 
-### 💰 Presupuestos y Ventas
+### 💰 Finanzas
+- `/expenses/`: Registro de gastos operativos y de obra.
+  - `GET /expenses/resumen-ot/{id}/`: Resumen de rentabilidad de una OT específica.
+- `/suppliers/`: Gestión de proveedores y contratistas.
+- `/supplier-invoices/`: Control de facturas recibidas de proveedores.
+  - `POST /supplier-invoices/{id}/mark_paid/`: Marcar factura como pagada.
+
+### 💵 Presupuestos y Ventas
 - `/budgets/`: Cabeceras de presupuestos generados.
 - `/budget-items/`: Ítems detallados dentro de cada presupuesto.
 
 ### 🏭 Producción y Órdenes de Trabajo
 - `/work-orders/`: Gestión del flujo de trabajo y estados de órdenes.
+  - `POST /work-orders/{id}/mark-delivered/`: Marcar OT como entregada a logística/cliente.
+  - `POST /work-orders/{id}/upload-photo/`: Subir evidencia fotográfica (antes/después).
 - `/work-order-materials/`: Registro de materiales consumidos por orden.
+- `/work-order-notifications/`: Alertas críticas específicas de OTs.
 - `/sectors/`: Definición de sectores de la empresa.
 - `/sector-tasks/`: Tareas asignadas a sectores específicos.
+  - `POST /sector-tasks/{id}/start/`: Iniciar cronómetro de tarea.
+  - `POST /sector-tasks/{id}/complete/`: Finalizar tarea (dispara notificaciones a otros sectores).
+  - `POST /sector-tasks/{id}/block/`: Marcar tarea como bloqueada por incidencia.
 
 ### 🏪 Inventario
 - `/products/`: Catálogo de productos y materiales.
 - `/stock-movements/`: Historial de entradas y salidas de almacén.
+- `/material-reservations/`: Gestión de reservas para producción.
+  - `POST /material-reservations/{id}/approve/`: (Admin) Aprobar reserva y descontar stock.
+  - `POST /material-reservations/{id}/reject/`: (Admin) Rechazar reserva con motivo.
+- `/purchase-requests/`: Solicitudes de compra de insumos faltantes.
+  - `POST /purchase-requests/{id}/receive/`: Registrar recepción de mercadería y sumar stock.
 
 ### 📍 Espacios Publicitarios
 - `/ad-spaces/`: Inventario de espacios físicos o digitales para publicidad.
@@ -62,6 +80,9 @@ A continuación se detallan los recursos disponibles en la API. Todos los endpoi
 
 ### 👷 Personal
 - `/employees/`: Perfiles detallados de los empleados.
+
+### 🔔 Notificaciones
+- `/notifications/`: Sistema central de notificaciones internas del sistema.
 
 ### 💬 Comunicación (Real-time)
 - `/messages/`: Historial y envío de mensajes internos.
@@ -98,4 +119,4 @@ const fetchWorkOrders = async (token) => {
 
 ---
 > [!NOTE]
-> Esta documentación se actualiza automáticamente mediante el esquema de la API. Para detalles técnicos de cada campo (tipos de datos, requeridos, etc.), consulte el **Swagger UI**.
+> Esta documentación se actualiza periódicamente. Para detalles técnicos de cada campo (tipos de datos, requeridos, etc.), consulte el **Swagger UI** en su entorno local.

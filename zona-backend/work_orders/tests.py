@@ -47,7 +47,9 @@ class WorkOrderTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('url', response.data)
-        
-        # Verificar que se guardó en el modelo
-        self.ot.refresh_from_db()
-        self.assertTrue(any('test_photo.jpg' in url for url in self.ot.photos_before))
+        self.assertEqual(response.data['category'], 'before')
+
+        from .models import WorkOrderPhoto
+        self.assertTrue(
+            WorkOrderPhoto.objects.filter(work_order=self.ot, category='before').exists()
+        )

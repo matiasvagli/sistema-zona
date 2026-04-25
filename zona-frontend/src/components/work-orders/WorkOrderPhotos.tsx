@@ -23,16 +23,11 @@ export const WorkOrderPhotos: React.FC<WorkOrderPhotosProps> = ({
   fileBeforeRef,
   fileAfterRef,
 }) => {
-  // Combinar fotos legacy con las nuevas del refactor
-  const photosBefore = [
-    ...(ot.photos_before || []),
-    ...(ot.new_photos?.filter((p: any) => p.category === "before").map((p: any) => ({ url: p.image, id: p.id })) || [])
-  ];
-  
-  const photosAfter = [
-    ...(ot.photos_after || []),
-    ...(ot.new_photos?.filter((p: any) => p.category === "after").map((p: any) => ({ url: p.image, id: p.id })) || [])
-  ];
+  const photosBefore: { url: string; id: number }[] =
+    ot.new_photos?.filter((p: any) => p.category === "before").map((p: any) => ({ url: p.image, id: p.id })) || [];
+
+  const photosAfter: { url: string; id: number }[] =
+    ot.new_photos?.filter((p: any) => p.category === "after").map((p: any) => ({ url: p.image, id: p.id })) || [];
 
   const renderPhotoSection = (title: string, photos: any[], category: "before" | "after", ref: React.RefObject<HTMLInputElement>) => (
     <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.08)", padding: "24px 28px", marginBottom: 24 }}>
@@ -70,8 +65,7 @@ export const WorkOrderPhotos: React.FC<WorkOrderPhotosProps> = ({
       ) : (
         <Row gutter={[12, 12]}>
           {photos.map((p, i) => {
-            const url = typeof p === "string" ? p : p.url;
-            const id = typeof p === "string" ? undefined : p.id;
+            const { url, id } = p;
             return (
               <Col key={i} xs={12} sm={8} md={6}>
                 <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #f1f5f9" }}>

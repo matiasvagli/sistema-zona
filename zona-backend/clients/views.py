@@ -5,5 +5,5 @@ from .serializers import ClientSerializer
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
-    search_fields = ('name', 'tax_id')
+    search_fields = ('name', 'tax_id', 'email')
     filterset_fields = ('is_active',)
