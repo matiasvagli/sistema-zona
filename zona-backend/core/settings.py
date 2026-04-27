@@ -179,6 +179,8 @@ SIMPLE_JWT = {
 _cors_origins = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000')
 CORS_ALLOWED_ORIGINS = [s.strip() for s in _cors_origins.split(',')]
 
+CSRF_TRUSTED_ORIGINS = [s.strip() for s in config('CSRF_TRUSTED_ORIGINS', default='http://localhost:8000').split(',')]
+
 # Spectacular Configuration
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Sistema de Gestión Publicidad API',
