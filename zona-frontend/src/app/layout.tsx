@@ -6,6 +6,8 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 const inter = Inter({ subsets: ["latin"] });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Sistema de Gestión - Zona",
   description: "Gestión de Publicidad",
