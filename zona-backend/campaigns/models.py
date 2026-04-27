@@ -40,4 +40,5 @@ class CampaignSpace(models.Model):
     notes = models.TextField(blank=True)
 
     def __str__(self):
-        return f"{self.campaign.name} - {self.space_rental.ad_space.name}"
+        face = self.space_rental.face if (self.space_rental_id and self.space_rental.face_id) else None
+        return f"{self.campaign.name} - {face or '—'}"

@@ -16,7 +16,10 @@ from finanzas.views import ExpenseViewSet, SupplierViewSet, SupplierInvoiceViewS
 from budgets.views import BudgetViewSet, BudgetItemViewSet
 from work_orders.views import WorkOrderViewSet, WorkOrderNotificationViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
-from spaces.views import AdSpaceViewSet, SpaceRentalViewSet
+from spaces.views import (
+    LandlordViewSet, LocationViewSet, StructureViewSet, 
+    StructureFaceViewSet, SpaceExpenseViewSet, SpaceRentalViewSet
+)
 from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
 from employees.views import EmployeeViewSet
 
@@ -34,8 +37,15 @@ router.register(r'work-orders', WorkOrderViewSet)
 router.register(r'work-order-notifications', WorkOrderNotificationViewSet, basename='work-order-notification')
 router.register(r'sectors', SectorViewSet)
 router.register(r'sector-tasks', SectorTaskViewSet)
-router.register(r'ad-spaces', AdSpaceViewSet)
+
+# Spaces / Espacios Viales
+router.register(r'landlords', LandlordViewSet)
+router.register(r'locations', LocationViewSet)
+router.register(r'structures', StructureViewSet)
+router.register(r'structure-faces', StructureFaceViewSet)
+router.register(r'space-expenses', SpaceExpenseViewSet)
 router.register(r'space-rentals', SpaceRentalViewSet)
+
 router.register(r'campaigns', CampaignViewSet)
 router.register(r'campaign-spaces', CampaignSpaceViewSet)
 router.register(r'employees', EmployeeViewSet)

@@ -2,15 +2,16 @@
 
 import { AdminGuard } from "@/components/AdminGuard";
 import { Edit, useForm } from "@refinedev/antd";
-import { Form, Input, Select, Checkbox, Row, Col, Card, Typography, Divider, Space, Switch, Table, notification, Button, Tag, Avatar } from "antd";
+import { Form, Input, Select, Checkbox, Row, Col, Card, Typography, Divider, Space, Switch, Table, notification, Button, Tag, Avatar, Alert } from "antd";
 import { useParams, useRouter } from "next/navigation";
-import { useList } from "@refinedev/core";
+import { useList, useGetIdentity } from "@refinedev/core";
 import { useState } from "react";
 import {
   UserOutlined, LockOutlined, MailOutlined, IdcardOutlined,
   AppstoreOutlined, SafetyCertificateOutlined, TeamOutlined,
   ArrowLeftOutlined, KeyOutlined,
-  EyeOutlined, EditOutlined, PlusSquareOutlined, DeleteOutlined
+  EyeOutlined, EditOutlined, PlusSquareOutlined, DeleteOutlined,
+  CrownOutlined
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -20,12 +21,19 @@ const { Text, Title } = Typography;
 export default function UserEdit() {
   const { id: userId } = useParams<{ id: string }>();
   const router = useRouter();
-  const { formProps, saveButtonProps } = useForm({
+  const { formProps, saveButtonProps, query: userQuery } = useForm({
     action: "edit",
     resource: "users",
     id: userId,
   });
+  const { data: identity } = useGetIdentity<any>();
   const [savingMembership, setSavingMembership] = useState<number | null>(null);
+
+  const targetRole: string = userQuery?.data?.data?.rol ?? "empleado";
+  const myRole: string = identity?.rol ?? "empleado";
+  const iAmCeo = myRole === "ceo" || identity?.is_superuser;
+  const targetIsCeo = targetRole === "ceo";
+  const readOnly = targetIsCeo && !iAmCeo;
 
   // Obtener sectores para la tabla de permisos
   const { result: sectorsResult } = useList({
@@ -184,6 +192,17 @@ export default function UserEdit() {
           </Button>
         </div>
 
+        {readOnly && (
+          <Alert
+            type="warning"
+            showIcon
+            icon={<CrownOutlined />}
+            message="Este usuario es CEO"
+            description="Solo otro CEO puede modificar el perfil de un CEO."
+            style={{ marginBottom: 24, borderRadius: 12 }}
+          />
+        )}
+
         <Form {...formProps} layout="vertical">
           <Row gutter={[32, 32]}>
             {/* Columna Izquierda: Credenciales */}
@@ -338,14 +357,15 @@ export default function UserEdit() {
             justifyContent: "flex-end",
             gap: "16px"
           }}>
-            <Button 
-              type="primary" 
-              size="large" 
-              {...saveButtonProps} 
-              style={{ 
+            <Button
+              type="primary"
+              size="large"
+              {...saveButtonProps}
+              disabled={readOnly || saveButtonProps.disabled}
+              style={{
                 height: "50px",
-                padding: "0 48px", 
-                borderRadius: "12px", 
+                padding: "0 48px",
+                borderRadius: "12px",
                 fontWeight: 700,
                 fontSize: "16px",
                 boxShadow: "0 8px 20px rgba(6, 182, 212, 0.3)"

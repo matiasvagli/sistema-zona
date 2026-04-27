@@ -108,10 +108,16 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                                 meta: { label: "Sectores" },
                             },
                             {
-                                name: "ad-spaces",
-                                list: "/ad-spaces",
+                                name: "spaces",
+                                list: "/spaces",
                                 meta: { label: "Espacios Viales" },
                             },
+                            { name: "landlords", meta: { hide: true } },
+                            { name: "locations", meta: { hide: true } },
+                            { name: "structures", meta: { hide: true } },
+                            { name: "structure-faces", meta: { hide: true } },
+                            { name: "space-expenses", meta: { hide: true } },
+                            { name: "space-rentals", meta: { hide: true } },
                             {
                                 name: "campaigns",
                                 list: "/campaigns",

@@ -15,6 +15,14 @@ class WorkOrder(models.Model):
         NORMAL = 'normal', 'Normal'
         INMEDIATA = 'inmediata', 'Inmediata'
 
+    class WorkType(models.TextChoices):
+        GENERAL = 'general', 'General'
+        INSTALACION_EV = 'instalacion_espacio_vial', 'Instalación Espacio Vial'
+        MANTENIMIENTO_EV = 'mantenimiento_espacio_vial', 'Mantenimiento Espacio Vial'
+        CAMPANA = 'campana', 'Campaña'
+        CIVIL = 'civil', 'Civil / Construcción'
+        ELECTRICO = 'electrico', 'Eléctrico'
+
     title = models.CharField(max_length=255)
     client = models.ForeignKey(
         'clients.Client', 
@@ -39,6 +47,20 @@ class WorkOrder(models.Model):
         max_length=20,
         choices=Priority.choices,
         default=Priority.NORMAL
+    )
+    work_type = models.CharField(
+        max_length=30,
+        choices=WorkType.choices,
+        default=WorkType.GENERAL,
+        verbose_name="Tipo de OT"
+    )
+    structure = models.ForeignKey(
+        'spaces.Structure',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='structure_work_orders',
+        verbose_name="Estructura vinculada"
     )
     due_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
