@@ -1,14 +1,13 @@
 "use client";
 
 import { AdminGuard } from "@/components/AdminGuard";
-import { useForm, useSelect } from "@refinedev/antd";
-import { Form, Input, Select, Checkbox, Row, Col, Card, Typography, Divider, Space, Button } from "antd";
-import { 
-  UserOutlined, 
-  LockOutlined, 
-  MailOutlined, 
-  IdcardOutlined, 
-  AppstoreOutlined, 
+import { useForm } from "@refinedev/antd";
+import { Form, Input, Checkbox, Row, Col, Card, Typography, Divider, Space, Button } from "antd";
+import {
+  UserOutlined,
+  LockOutlined,
+  MailOutlined,
+  IdcardOutlined,
   SafetyCertificateOutlined,
   UserAddOutlined,
   ArrowLeftOutlined,
@@ -24,12 +23,6 @@ export default function UserCreate() {
     redirect: "list"
   });
   const router = useRouter();
-
-  const { selectProps: sectorSelectProps } = useSelect({
-    resource: "sectors",
-    optionLabel: "name",
-    optionValue: "id",
-  });
 
   return (
     <AdminGuard>
@@ -162,21 +155,6 @@ export default function UserCreate() {
                     </Form.Item>
                   </Col>
                 </Row>
-
-                <Form.Item 
-                  label={<Text strong type="secondary">Asignación de Sector</Text>} 
-                  name="sector"
-                  help="El sector define qué pipeline verá el usuario por defecto"
-                >
-                  <Select 
-                    {...sectorSelectProps} 
-                    size="large"
-                    allowClear 
-                    placeholder="Seleccione un sector..." 
-                    style={{ borderRadius: "10px" }}
-                    suffixIcon={<AppstoreOutlined />}
-                  />
-                </Form.Item>
 
                 <Divider />
 

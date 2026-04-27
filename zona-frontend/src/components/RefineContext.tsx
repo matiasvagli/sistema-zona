@@ -128,6 +128,13 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                                 meta: { label: "Elementos" },
                             },
                             {
+                                name: "employees",
+                                list: "/rrhh",
+                                create: "/rrhh/create",
+                                show: "/rrhh/:id",
+                                meta: { label: "RRHH" },
+                            },
+                            {
                                 name: "users",
                                 list: "/users",
                                 create: "/users/create",
