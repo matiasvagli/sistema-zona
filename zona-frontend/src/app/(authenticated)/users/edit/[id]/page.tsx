@@ -20,7 +20,7 @@ const { Text, Title } = Typography;
 export default function UserEdit() {
   const { id: userId } = useParams<{ id: string }>();
   const router = useRouter();
-  const { formProps, saveButtonProps, queryResult: userQuery } = useForm({
+  const { formProps, saveButtonProps } = useForm({
     action: "edit",
     resource: "users",
     id: userId,
