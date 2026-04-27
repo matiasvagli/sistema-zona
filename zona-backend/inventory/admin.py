@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Product, StockMovement, MaterialReservation
+from .models import Product, StockMovement, MaterialReservation, PurchaseRequest
 
 
 @admin.register(Product)
@@ -22,3 +22,10 @@ class MaterialReservationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'is_cross_sector', 'sector_task__sector')
     readonly_fields = ('is_cross_sector', 'created_at', 'approved_at')
     search_fields = ('product__name',)
+
+
+@admin.register(PurchaseRequest)
+class PurchaseRequestAdmin(admin.ModelAdmin):
+    list_display = ('product', 'quantity_requested', 'status', 'requested_by', 'resolved_by', 'resolved_at')
+    list_filter = ('status',)
+    search_fields = ('product__name', 'notes')
