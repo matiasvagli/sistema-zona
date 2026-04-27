@@ -68,7 +68,7 @@ export default function WorkOrdersPage() {
       dataIndex: "status",
       width: 120,
       render: (status: string) => {
-        const cfg = statusConfig[status] || { color: "default", label: status };
+        const cfg = statusConfig[status as keyof typeof statusConfig] || { color: "default", label: status };
         return <Tag color={cfg.color}>{cfg.label}</Tag>;
       },
     },
