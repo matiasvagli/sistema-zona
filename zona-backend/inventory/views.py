@@ -167,7 +167,7 @@ class MaterialReservationViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         reservation = self.get_object()
 
-        if not request.user.has_perm('inventory.approve_material_reservation'):
+        if not is_admin(request.user):
             return Response(
                 {'detail': 'No tenés permiso para aprobar reservas de material.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -207,7 +207,7 @@ class MaterialReservationViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         reservation = self.get_object()
 
-        if not request.user.has_perm('inventory.approve_material_reservation'):
+        if not is_admin(request.user):
             return Response(
                 {'detail': 'No tenés permiso para rechazar reservas de material.'},
                 status=status.HTTP_403_FORBIDDEN
