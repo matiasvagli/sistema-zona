@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { Typography, Row, Col, Input, Select, DatePicker, Tag, Button } from "antd";
-import { FireOutlined } from "@ant-design/icons";
+import { Typography, Row, Col, Input, Select, DatePicker, Tag, Button, Tooltip } from "antd";
+import { FireOutlined, UserAddOutlined, FileAddOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
 const { Text } = Typography;
@@ -16,6 +16,9 @@ interface WorkOrderInfoCardProps {
   editFields: any;
   setEditFields: (fields: any) => void;
   statusCfg: { color: string; label: string };
+  isAdmin?: boolean;
+  onAssignClient?: () => void;
+  onCreateBudget?: () => void;
 }
 
 export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
@@ -25,6 +28,9 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
   editFields,
   setEditFields,
   statusCfg,
+  isAdmin,
+  onAssignClient,
+  onCreateBudget,
 }) => {
   return (
     <div style={{ 
@@ -112,8 +118,23 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
             </div>
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Tipo de OT</Text>
+            <div style={{ marginTop: 4 }}>
+              <Tag color="geekblue" style={{ fontSize: 13, padding: "2px 10px" }}>
+                {{ general: 'General', instalacion_espacio_vial: '🏗️ Instalación EV', mantenimiento_espacio_vial: '🔧 Mantenimiento EV', campana: '📢 Campaña', civil: '🧱 Civil', electrico: '⚡ Eléctrico' }[ot.work_type as string] || ot.work_type || 'General'}
+              </Tag>
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 180 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>Cliente</Text>
-            <Text strong style={{ display: "block", marginTop: 4 }}>{ot.client_name || "—"}</Text>
+            <div style={{ marginTop: 4 }}>
+              {ot.client_name
+                ? <Text strong>{ot.client_name}</Text>
+                : isAdmin
+                  ? <Button size="small" type="dashed" icon={<UserAddOutlined />} onClick={onAssignClient}>Asignar cliente</Button>
+                  : <Text type="secondary">—</Text>
+              }
+            </div>
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>Vencimiento</Text>
@@ -123,10 +144,33 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>Presupuesto</Text>
-            <Text strong style={{ display: "block", marginTop: 4 }}>
-              {ot.budget_title ? <Tag color="blue">{ot.budget_title}</Tag> : <Text type="secondary" style={{ fontSize: 12 }}>Sin vincular</Text>}
-            </Text>
+            <div style={{ marginTop: 4 }}>
+              {ot.budget_title
+                ? <Tag color="blue">{ot.budget_title}</Tag>
+                : isAdmin
+                  ? <Tooltip title={!ot.client ? "Primero asigná un cliente" : ""}>
+                      <Button size="small" type="dashed" icon={<FileAddOutlined />} onClick={onCreateBudget} disabled={!ot.client}>Crear presupuesto</Button>
+                    </Tooltip>
+                  : <Text type="secondary" style={{ fontSize: 12 }}>Sin vincular</Text>
+              }
+            </div>
           </div>
+          {ot.structure_name && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Estructura</Text>
+              <div style={{ marginTop: 4 }}>
+                <Tag color="purple" style={{ fontSize: 13, padding: "2px 10px" }}>{ot.structure_name}</Tag>
+              </div>
+            </div>
+          )}
+          {ot.campaign_name && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>Campaña</Text>
+              <div style={{ marginTop: 4 }}>
+                <Tag color="orange" style={{ fontSize: 13, padding: "2px 10px" }}>📢 {ot.campaign_name}</Tag>
+              </div>
+            </div>
+          )}
           {ot.notes && (
             <div style={{ width: "100%" }}>
               <Text type="secondary" style={{ fontSize: 12 }}>Notas</Text>

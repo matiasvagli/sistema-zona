@@ -62,6 +62,14 @@ class WorkOrder(models.Model):
         related_name='structure_work_orders',
         verbose_name="Estructura vinculada"
     )
+    campaign = models.ForeignKey(
+        'campaigns.Campaign',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='work_orders',
+        verbose_name="Campaña vinculada"
+    )
     due_date = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(

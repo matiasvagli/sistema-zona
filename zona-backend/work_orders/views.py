@@ -80,6 +80,44 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
             'category': photo.category
         }, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='assign-client')
+    def assign_client(self, request, pk=None):
+        from accounts.permissions import is_admin
+        wo = self.get_object()
+        if not is_admin(request.user):
+            return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
+        client_id = request.data.get('client')
+        if not client_id:
+            return Response({'detail': 'Enviá el id del cliente.'}, status=status.HTTP_400_BAD_REQUEST)
+        from clients.models import Client
+        try:
+            client = Client.objects.get(pk=client_id)
+        except Client.DoesNotExist:
+            return Response({'detail': 'Cliente no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        wo.client = client
+        wo.save(update_fields=['client'])
+        return Response(self.get_serializer(wo).data)
+
+    @action(detail=True, methods=['post'], url_path='create-budget')
+    def create_budget(self, request, pk=None):
+        from accounts.permissions import is_admin
+        wo = self.get_object()
+        if not is_admin(request.user):
+            return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
+        if wo.budget_id:
+            return Response({'detail': 'Esta OT ya tiene un presupuesto vinculado.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not wo.client_id:
+            return Response({'detail': 'Asigná un cliente a la OT antes de crear el presupuesto.'}, status=status.HTTP_400_BAD_REQUEST)
+        from budgets.models import Budget
+        budget = Budget.objects.create(
+            client=wo.client,
+            notes=wo.notes,
+            created_by=request.user,
+        )
+        wo.budget = budget
+        wo.save(update_fields=['budget'])
+        return Response({'budget_id': budget.id, 'budget_title': f'PRE-{budget.id:04d}'}, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'], url_path='remove-photo')
     def remove_photo(self, request, pk=None):
         ot = self.get_object()

@@ -10,10 +10,12 @@ class BudgetItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class BudgetSerializer(serializers.ModelSerializer):
-    client_name  = serializers.ReadOnlyField(source='client.name')
-    total_amount = serializers.ReadOnlyField()
-    items        = BudgetItemSerializer(many=True, read_only=True)
-    work_order   = serializers.SerializerMethodField()
+    client_name    = serializers.ReadOnlyField(source='client.name')
+    total_amount   = serializers.ReadOnlyField()
+    iva_amount     = serializers.ReadOnlyField()
+    total_with_iva = serializers.ReadOnlyField()
+    items          = BudgetItemSerializer(many=True, read_only=True)
+    work_order     = serializers.SerializerMethodField()
 
     def get_work_order(self, obj):
         wo = getattr(obj, 'work_order_assigned', None)

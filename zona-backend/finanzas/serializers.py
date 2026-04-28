@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Expense, Supplier, SupplierInvoice
+from .models import Expense, Supplier, SupplierInvoice, IvaRecord
 
 
 class ExpenseSerializer(serializers.ModelSerializer):
@@ -28,6 +28,25 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = '__all__'
         read_only_fields = ('created_at',)
+
+
+class IvaRecordSerializer(serializers.ModelSerializer):
+    budget_title  = serializers.SerializerMethodField()
+    client_name   = serializers.SerializerMethodField()
+    status_display = serializers.ReadOnlyField(source='get_status_display')
+
+    def get_budget_title(self, obj):
+        return f"PRE-{obj.budget_id:04d}" if obj.budget_id else None
+
+    def get_client_name(self, obj):
+        if obj.budget and obj.budget.client:
+            return obj.budget.client.name
+        return None
+
+    class Meta:
+        model = IvaRecord
+        fields = '__all__'
+        read_only_fields = ('registered_by', 'declared_at', 'created_at')
 
 
 class SupplierInvoiceSerializer(serializers.ModelSerializer):

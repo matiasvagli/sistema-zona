@@ -12,6 +12,7 @@ class WorkOrderPhotoSerializer(serializers.ModelSerializer):
 class WorkOrderSerializer(serializers.ModelSerializer):
     client_name    = serializers.ReadOnlyField(source='client.name')
     structure_name = serializers.ReadOnlyField(source='structure.name')
+    campaign_name  = serializers.ReadOnlyField(source='campaign.name')
     budget_title   = serializers.SerializerMethodField()
     tasks        = SectorTaskSerializer(many=True, read_only=True)
     new_photos   = WorkOrderPhotoSerializer(many=True, read_only=True, source='work_order_photos')

@@ -12,13 +12,14 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from accounts.views import UserViewSet, SectorMembershipViewSet
 from clients.views import ClientViewSet
 from inventory.views import ProductViewSet, StockMovementViewSet, MaterialReservationViewSet, PurchaseRequestViewSet
-from finanzas.views import ExpenseViewSet, SupplierViewSet, SupplierInvoiceViewSet
+from finanzas.views import ExpenseViewSet, SupplierViewSet, SupplierInvoiceViewSet, IvaRecordViewSet
 from budgets.views import BudgetViewSet, BudgetItemViewSet
 from work_orders.views import WorkOrderViewSet, WorkOrderNotificationViewSet
 from production.views import SectorViewSet, SectorTaskViewSet
 from spaces.views import (
     LandlordViewSet, LocationViewSet, StructureViewSet, 
-    StructureFaceViewSet, SpaceExpenseViewSet, SpaceRentalViewSet
+    StructureFaceViewSet, SpaceExpenseViewSet, SpaceRentalViewSet,
+    LEDSlotViewSet
 )
 from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
 from employees.views import EmployeeViewSet
@@ -45,6 +46,7 @@ router.register(r'structures', StructureViewSet)
 router.register(r'structure-faces', StructureFaceViewSet)
 router.register(r'space-expenses', SpaceExpenseViewSet)
 router.register(r'space-rentals', SpaceRentalViewSet)
+router.register(r'led-slots', LEDSlotViewSet)
 
 router.register(r'campaigns', CampaignViewSet)
 router.register(r'campaign-spaces', CampaignSpaceViewSet)
@@ -52,6 +54,7 @@ router.register(r'employees', EmployeeViewSet)
 router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'suppliers', SupplierViewSet)
 router.register(r'supplier-invoices', SupplierInvoiceViewSet)
+router.register(r'iva-records', IvaRecordViewSet, basename='iva-record')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

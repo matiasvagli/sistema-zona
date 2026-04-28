@@ -53,7 +53,7 @@ export default function EmployeeDetailPage() {
         fecha_ingreso: employee.fecha_ingreso ? dayjs(employee.fecha_ingreso) : null,
       });
     }
-  }, [employee, form]);
+  }, [employee?.id, form]);
 
   const handleSave = async () => {
     try {
@@ -95,7 +95,7 @@ export default function EmployeeDetailPage() {
           </div>
           <div>
             <Title level={3} style={{ color: "#fff", margin: 0, fontWeight: 800 }}>
-              {isCreate ? "Nuevo Empleado" : `${employee?.last_name}, ${employee?.first_name}`}
+              {isCreate ? "Nuevo Empleado" : `${employee?.last_name || "Cargando..."}, ${employee?.first_name || ""}`}
             </Title>
             {!isCreate && employee?.legajo && (
               <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 14 }}>Legajo #{employee.legajo}</Text>

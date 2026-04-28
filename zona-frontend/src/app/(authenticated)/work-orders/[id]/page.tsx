@@ -29,6 +29,7 @@ const taskStatusConfig = TASK_STATUS;
 
 export default function WorkOrderDetail() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: identity } = useGetIdentity<any>();
   const [ot, setOt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -57,15 +58,20 @@ export default function WorkOrderDetail() {
   const fileAfterRef  = useRef<HTMLInputElement>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState<"before" | "after" | null>(null);
   const [billingOpen, setBillingOpen] = useState(false);
+  const [assignClientOpen, setAssignClientOpen] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [assigningClient, setAssigningClient] = useState(false);
 
   const { result: sectorsResult } = useList({
     resource: "sectors",
     sorters: [{ field: "order", order: "asc" }],
   });
   const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 200 } });
-  
+  const { result: clientsResult } = useList({ resource: "clients", pagination: { pageSize: 200 } });
+
   const allSectors: any[] = sectorsResult?.data || [];
   const allProducts: any[] = productsResult?.data || [];
+  const allClients: any[] = clientsResult?.data || [];
 
   const fetchOT = async () => {
     try {
@@ -209,6 +215,33 @@ export default function WorkOrderDetail() {
     } catch { notification.error({ message: "Error al eliminar foto" }); }
   };
 
+  const assignClient = async () => {
+    if (!selectedClientId) return;
+    setAssigningClient(true);
+    try {
+      await axiosInstance.post(`${API}/work-orders/${id}/assign-client/`, { client: selectedClientId });
+      notification.success({ message: "Cliente asignado" });
+      setAssignClientOpen(false);
+      setSelectedClientId(null);
+      fetchOT();
+    } catch {
+      notification.error({ message: "Error al asignar cliente" });
+    } finally {
+      setAssigningClient(false);
+    }
+  };
+
+  const createBudget = async () => {
+    try {
+      const { data } = await axiosInstance.post(`${API}/work-orders/${id}/create-budget/`);
+      notification.success({ message: "Presupuesto creado" });
+      fetchOT();
+      router.push(`/budgets/${data.budget_id}`);
+    } catch (e: any) {
+      notification.error({ message: e?.response?.data?.detail || "Error al crear presupuesto" });
+    }
+  };
+
   const handleInvoiceOT = async () => {
     setBillingOpen(true);
   };
@@ -240,13 +273,16 @@ export default function WorkOrderDetail() {
         <Row gutter={[24, 24]}>
           <Col xs={24} lg={14}>
             
-            <WorkOrderInfoCard 
+            <WorkOrderInfoCard
               ot={ot}
               editMode={editMode}
               setEditMode={setEditMode}
               editFields={editFields}
               setEditFields={setEditFields}
               statusCfg={statusCfg}
+              isAdmin={!!(identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin')}
+              onAssignClient={() => setAssignClientOpen(true)}
+              onCreateBudget={createBudget}
             />
 
             <WorkOrderSectors
@@ -386,7 +422,34 @@ export default function WorkOrderDetail() {
         </div>
       </Modal>
       
-      <BillingModal 
+      <Modal
+        title="Asignar Cliente"
+        open={assignClientOpen}
+        onOk={assignClient}
+        onCancel={() => { setAssignClientOpen(false); setSelectedClientId(null); }}
+        confirmLoading={assigningClient}
+        okText="Asignar"
+        cancelText="Cancelar"
+        okButtonProps={{ disabled: !selectedClientId }}
+      >
+        <div style={{ padding: "10px 0" }}>
+          <p style={{ marginBottom: 8 }}>Seleccioná el cliente para esta OT:</p>
+          <Select
+            showSearch
+            placeholder="Buscar cliente..."
+            style={{ width: "100%" }}
+            optionFilterProp="children"
+            onChange={setSelectedClientId}
+            value={selectedClientId}
+          >
+            {allClients.map((c: any) => (
+              <Option key={c.id} value={c.id}>{c.name}</Option>
+            ))}
+          </Select>
+        </div>
+      </Modal>
+
+      <BillingModal
         open={billingOpen}
         onClose={() => setBillingOpen(false)}
         onSuccess={fetchOT}

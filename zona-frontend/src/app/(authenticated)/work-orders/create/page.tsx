@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { useList } from "@refinedev/core";
 import {
   Typography, Form, Input, Select, DatePicker, Button, Card,
-  notification, Spin, Row, Col, Divider, Tag,
+  notification, Spin, Row, Col, Divider, Tag, Alert,
 } from "antd";
 import {
   ArrowLeftOutlined, FireOutlined, SaveOutlined,
   UserOutlined, CalendarOutlined, AlignLeftOutlined,
   CameraOutlined, DeleteOutlined, PlusOutlined, CheckCircleFilled,
-  FileTextOutlined, RocketOutlined,
+  FileTextOutlined, RocketOutlined, EnvironmentOutlined, VideoCameraOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
@@ -112,9 +112,21 @@ export default function WorkOrderCreate() {
     resource: "budgets", pagination: { pageSize: 100 },
     sorters: [{ field: "created_at", order: "desc" }],
   });
+  const { result: structuresResult } = useList({
+    resource: "structures", pagination: { pageSize: 200 },
+    sorters: [{ field: "name", order: "asc" }],
+  });
+  const { result: campaignsResult } = useList({
+    resource: "campaigns", pagination: { pageSize: 200 },
+    sorters: [{ field: "id", order: "desc" }],
+  });
 
   const sectors: any[] = sectorsResult?.data || [];
   const budgets: any[] = (budgetsResult?.data || []).filter((b: any) => !b.work_order);
+  const structures: any[] = structuresResult?.data || [];
+  const campaigns: any[] = campaignsResult?.data || [];
+
+  const [workType, setWorkType] = useState("general");
 
   const onBudgetSelect = (budgetId: number) => {
     const b = budgets.find((x) => x.id === budgetId);
@@ -148,15 +160,22 @@ export default function WorkOrderCreate() {
   const handleSubmit = async (values: any) => {
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         title: values.title,
         status: values.status || "pendiente",
         priority: values.priority || "normal",
+        work_type: values.work_type || "general",
         notes: values.notes || "",
         client: values.client || null,
         budget: values.budget || null,
         due_date: values.due_date ? dayjs(values.due_date).toISOString() : null,
       };
+      if (values.work_type === "instalacion_espacio_vial" || values.work_type === "mantenimiento_espacio_vial") {
+        payload.structure = values.structure || null;
+      }
+      if (values.work_type === "campana") {
+        payload.campaign = values.campaign || null;
+      }
       const { data: newOT } = await axiosInstance.post(`${API}/work-orders/`, payload);
       if (selectedSectors.length > 0) {
         await Promise.all(selectedSectors.map((sid) =>
@@ -223,7 +242,7 @@ export default function WorkOrderCreate() {
       {/* Body */}
       <div style={{ padding: "28px 32px" }}>
         <Form form={form} layout="vertical" onFinish={handleSubmit}
-          initialValues={{ status: "pendiente", priority: "normal" }}>
+          initialValues={{ status: "pendiente", priority: "normal", work_type: "general" }}>
           <Row gutter={[20, 20]}>
 
             {/* LEFT: form fields */}
@@ -327,6 +346,44 @@ export default function WorkOrderCreate() {
                       </Form.Item>
                     </Col>
                   </Row>
+
+                    {/* Tipo de OT + campos condicionales */}
+                    <div style={{ background: '#f8fafc', borderRadius: 12, padding: '16px 20px', marginBottom: 20, border: '1px solid #e2e8f0' }}>
+                      <Form.Item
+                        label={<span style={{ color: "#64748b", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}><EnvironmentOutlined style={{ marginRight: 5 }} />Tipo de Orden</span>}
+                        name="work_type" style={{ marginBottom: workType === 'general' || workType === 'civil' || workType === 'electrico' ? 0 : 16 }}>
+                        <Select size="large" style={{ borderRadius: 10 }} onChange={(v) => setWorkType(v)}>
+                          <Option value="general">General</Option>
+                          <Option value="instalacion_espacio_vial">🏗️ Instalación Espacio Vial</Option>
+                          <Option value="mantenimiento_espacio_vial">🔧 Mantenimiento Espacio Vial</Option>
+                          <Option value="campana">📢 Campaña</Option>
+                          <Option value="civil">🧱 Civil / Construcción</Option>
+                          <Option value="electrico">⚡ Eléctrico</Option>
+                        </Select>
+                      </Form.Item>
+
+                      {(workType === 'instalacion_espacio_vial' || workType === 'mantenimiento_espacio_vial') && (
+                        <Form.Item
+                          label={<span style={{ color: "#64748b", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Estructura vinculada</span>}
+                          name="structure" style={{ marginBottom: 0 }}>
+                          <Select size="large" placeholder="Seleccionar estructura..." allowClear showSearch optionFilterProp="label"
+                            style={{ borderRadius: 10 }}
+                            options={structures.map((s: any) => ({ value: s.id, label: `${s.name} — ${s.location_name}` }))}
+                          />
+                        </Form.Item>
+                      )}
+
+                      {workType === 'campana' && (
+                        <Form.Item
+                          label={<span style={{ color: "#64748b", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}><VideoCameraOutlined style={{ marginRight: 5 }} />Campaña vinculada</span>}
+                          name="campaign" style={{ marginBottom: 0 }}>
+                          <Select size="large" placeholder="Seleccionar campaña..." allowClear showSearch optionFilterProp="label"
+                            style={{ borderRadius: 10 }}
+                            options={campaigns.map((c: any) => ({ value: c.id, label: `${c.name} — ${c.client_name}` }))}
+                          />
+                        </Form.Item>
+                      )}
+                    </div>
 
                   <Form.Item
                     label={<span style={{ color: "#64748b", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}><AlignLeftOutlined style={{ marginRight: 5 }} />Notas</span>}

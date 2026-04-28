@@ -21,6 +21,7 @@ class Location(models.Model):
 
     name = models.CharField(max_length=255, verbose_name="Nombre descriptivo", help_text="Ej: Esquina Ruta 8 y 197")
     address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Dirección")
+    locality = models.CharField(max_length=255, blank=True, null=True, verbose_name="Localidad")
     latitude = models.DecimalField(max_digits=12, decimal_places=9, null=True, blank=True)
     longitude = models.DecimalField(max_digits=12, decimal_places=9, null=True, blank=True)
     
@@ -51,8 +52,12 @@ class Structure(models.Model):
     class StructureType(models.TextChoices):
         MONOPOSTE = 'monoposte', 'Monoposte'
         FRONTLIGHT = 'frontlight', 'Frontlight'
+        BACKLIGHT = 'backlight', 'Backlight'
         PANTALLA_LED = 'pantalla_led', 'Pantalla LED'
-        PARED = 'pared', 'Pared/Medianera'
+        MEDIANERA = 'medianera', 'Medianera'
+        REFUGIO = 'refugio', 'Refugio'
+        COLUMNA = 'columna', 'Columna'
+        CARTELERA_SIMPLE = 'cartelera_simple', 'Cartelera simple'
         OTRO = 'otro', 'Otro'
 
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='structures')
@@ -62,6 +67,10 @@ class Structure(models.Model):
     photo = models.ImageField(upload_to='structures/photos/', null=True, blank=True, verbose_name="Foto de instalación")
     installation_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    led_total_seconds_per_hour = models.IntegerField(
+        null=True, blank=True, default=3600,
+        help_text="Segundos vendibles por hora para pantallas LED (3600 = 100%)"
+    )
 
     def __str__(self):
         return f"{self.name} ({self.location.name})"
@@ -131,8 +140,84 @@ class SpaceRental(models.Model):
         blank=True,
         related_name='rentals_linked'
     )
+    campaign = models.ForeignKey(
+        'campaigns.Campaign',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='face_rentals',
+        verbose_name="Campaña vinculada"
+    )
 
     def __str__(self):
         if self.face:
             return f"{self.face} - {self.client.name}"
         return f"Alquiler - {self.client.name}"
+
+
+class LEDSlot(models.Model):
+    """Un slot de tiempo contratado en una pantalla LED"""
+    class TimeUnit(models.TextChoices):
+        SEGUNDOS = 'segundos', 'Segundos'
+        MINUTOS = 'minutos', 'Minutos'
+        HORAS = 'horas', 'Horas'
+
+    class Status(models.TextChoices):
+        ACTIVO = 'activo', 'Activo'
+        PAUSADO = 'pausado', 'Pausado'
+        FINALIZADO = 'finalizado', 'Finalizado'
+
+    structure = models.ForeignKey(
+        Structure, on_delete=models.CASCADE,
+        related_name='led_slots'
+    )
+    client = models.ForeignKey(
+        'clients.Client', on_delete=models.CASCADE,
+        related_name='led_slots'
+    )
+    campaign = models.ForeignKey(
+        'campaigns.Campaign', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='led_slots'
+    )
+
+    # Tiempo contratado
+    duration = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Duración del spot"
+    )
+    time_unit = models.CharField(
+        max_length=20, choices=TimeUnit.choices,
+        default=TimeUnit.SEGUNDOS
+    )
+    repetitions_per_hour = models.IntegerField(
+        default=1,
+        help_text="Cuántas veces se reproduce por hora"
+    )
+
+    # Período y precio
+    start_date = models.DateField()
+    end_date = models.DateField()
+    price = models.DecimalField(max_digits=12, decimal_places=2)
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVO
+    )
+    creative_url = models.URLField(blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    @property
+    def seconds_per_hour(self):
+        """Convierte la duración a segundos/hora según la unidad"""
+        d = float(self.duration)
+        if self.time_unit == 'minutos':
+            d *= 60
+        elif self.time_unit == 'horas':
+            d *= 3600
+        return d * self.repetitions_per_hour
+
+    def __str__(self):
+        return f"LED Slot: {self.client.name} - {self.duration}{self.time_unit[0]} x{self.repetitions_per_hour}/h"

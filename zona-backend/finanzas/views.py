@@ -6,8 +6,8 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from accounts.permissions import is_admin
-from .models import Expense, Supplier, SupplierInvoice
-from .serializers import ExpenseSerializer, SupplierSerializer, SupplierInvoiceSerializer
+from .models import Expense, Supplier, SupplierInvoice, IvaRecord
+from .serializers import ExpenseSerializer, SupplierSerializer, SupplierInvoiceSerializer, IvaRecordSerializer
 from inventory.models import StockMovement
 
 
@@ -135,6 +135,40 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             'direct_expenses':  direct_expenses,
             'net':              net,
         })
+
+
+class IvaRecordViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = IvaRecordSerializer
+    filterset_fields = ('status',)
+
+    def get_queryset(self):
+        qs = IvaRecord.objects.select_related('budget__client', 'registered_by').all()
+        desde = self.request.query_params.get('desde')
+        hasta = self.request.query_params.get('hasta')
+        if desde:
+            qs = qs.filter(period__gte=desde)
+        if hasta:
+            qs = qs.filter(period__lte=hasta)
+        return qs
+
+    @action(detail=True, methods=['post'])
+    def declare(self, request, pk=None):
+        record = self.get_object()
+        if not is_admin(request.user):
+            return Response({'detail': 'Sin permiso.'}, status=status.HTTP_403_FORBIDDEN)
+        if record.status == IvaRecord.Status.DECLARADO:
+            return Response({'detail': 'Ya está declarado.'}, status=status.HTTP_400_BAD_REQUEST)
+        record.status = IvaRecord.Status.DECLARADO
+        record.declared_at = timezone.now()
+        record.save(update_fields=['status', 'declared_at'])
+        return Response(IvaRecordSerializer(record).data)
+
+    @action(detail=False, methods=['get'])
+    def resumen(self, request):
+        from django.db.models import Sum
+        pendiente = IvaRecord.objects.filter(status='pendiente').aggregate(t=Sum('amount'))['t'] or 0
+        declarado = IvaRecord.objects.filter(status='declarado').aggregate(t=Sum('amount'))['t'] or 0
+        return Response({'pendiente': pendiente, 'declarado': declarado})
 
 
 class SupplierViewSet(viewsets.ModelViewSet):

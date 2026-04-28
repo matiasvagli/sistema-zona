@@ -4,10 +4,11 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Prefetch
 from accounts.permissions import IsAdminUser
 from work_orders.models import WorkOrder
-from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental
+from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot
 from .serializers import (
     LandlordSerializer, LocationSerializer, StructureSerializer,
-    StructureFaceSerializer, SpaceExpenseSerializer, SpaceRentalSerializer
+    StructureFaceSerializer, SpaceExpenseSerializer, SpaceRentalSerializer,
+    LEDSlotSerializer
 )
 
 
@@ -57,8 +58,17 @@ class SpaceExpenseViewSet(viewsets.ModelViewSet):
 
 class SpaceRentalViewSet(viewsets.ModelViewSet):
     queryset = SpaceRental.objects.select_related(
-        'face__structure__location', 'client'
+        'face__structure__location', 'client', 'campaign'
     ).all()
     serializer_class = SpaceRentalSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
-    filterset_fields = ('client', 'face', 'status')
+    filterset_fields = ('client', 'face', 'status', 'campaign')
+
+
+class LEDSlotViewSet(viewsets.ModelViewSet):
+    queryset = LEDSlot.objects.select_related(
+        'structure__location', 'client', 'campaign'
+    ).all()
+    serializer_class = LEDSlotSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    filterset_fields = ('structure', 'client', 'campaign', 'status')

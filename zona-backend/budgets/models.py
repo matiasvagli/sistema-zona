@@ -29,13 +29,25 @@ class Budget(models.Model):
     issue_date = models.DateField(auto_now_add=True, verbose_name="Fecha de emisión")
     expiry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de vencimiento")
     notes = models.TextField(blank=True)
-    
+    iva_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        verbose_name="IVA %"
+    )
+
     class Meta:
         ordering = ['-created_at']
 
     @property
     def total_amount(self):
         return sum(item.total_price for item in self.items.all())
+
+    @property
+    def iva_amount(self):
+        return self.total_amount * self.iva_pct / 100
+
+    @property
+    def total_with_iva(self):
+        return self.total_amount + self.iva_amount
 
     def __str__(self):
         return f"PRE-{self.id:04d} - {self.client.name}"

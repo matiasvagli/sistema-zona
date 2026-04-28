@@ -37,6 +37,37 @@ class Expense(models.Model):
         return f"{self.get_category_display()} — {self.description} (${self.amount})"
 
 
+class IvaRecord(models.Model):
+    class Status(models.TextChoices):
+        PENDIENTE = 'pendiente', 'Pendiente de declarar'
+        DECLARADO = 'declarado', 'Declarado/Pagado a AFIP'
+
+    budget = models.OneToOneField(
+        'budgets.Budget',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='iva_record',
+    )
+    amount        = models.DecimalField(max_digits=12, decimal_places=2)
+    period        = models.DateField(help_text="Fecha de facturación (para agrupar por mes)")
+    status        = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDIENTE)
+    declared_at   = models.DateTimeField(null=True, blank=True)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='iva_records_registered',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-period', '-created_at']
+
+    def __str__(self):
+        budget_str = f"PRE-{self.budget_id:04d}" if self.budget_id else "sin presupuesto"
+        return f"IVA {budget_str} — ${self.amount} [{self.status}]"
+
+
 def invoice_pdf_path(instance, filename):
     return f"invoices/{instance.supplier_id}/{filename}"
 

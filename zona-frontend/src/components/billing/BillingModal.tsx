@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Modal, Form, Select, Input, InputNumber, Button, Divider, Alert, notification } from "antd";
+import React, { useState, useEffect } from "react";
+import { Modal, Form, Select, Input, Button, Divider, Alert, Spin, notification } from "antd";
 import { FileProtectOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -29,6 +29,25 @@ export const BillingModal: React.FC<BillingModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [budgetData, setBudgetData] = useState<any>(null);
+  const [loadingBudget, setLoadingBudget] = useState(false);
+
+  useEffect(() => {
+    if (open && budgetId) {
+      setLoadingBudget(true);
+      axiosInstance.get(`${API}/budgets/${budgetId}/`)
+        .then(({ data }) => setBudgetData(data))
+        .catch(() => setBudgetData(null))
+        .finally(() => setLoadingBudget(false));
+    } else {
+      setBudgetData(null);
+    }
+  }, [open, budgetId]);
+
+  const subtotal     = budgetData ? Number(budgetData.total_amount   || 0) : totalAmount;
+  const ivaPct       = budgetData ? Number(budgetData.iva_pct        || 0) : 0;
+  const ivaAmount    = budgetData ? Number(budgetData.iva_amount     || 0) : 0;
+  const totalFactura = budgetData ? Number(budgetData.total_with_iva || 0) : totalAmount;
 
   const handleFinish = async (values: any) => {
     setLoading(true);
@@ -102,16 +121,36 @@ export const BillingModal: React.FC<BillingModalProps> = ({
         }}
       >
         <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "12px", marginBottom: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ color: "#64748b" }}>Cliente:</span>
-            <span style={{ fontWeight: 700, color: "#1e293b" }}>{clientName}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "#64748b" }}>Total a Facturar:</span>
-            <span style={{ fontWeight: 800, color: "#10b981", fontSize: 16 }}>
-              ${totalAmount.toLocaleString("es-AR")}
-            </span>
-          </div>
+          {loadingBudget ? (
+            <div style={{ textAlign: "center", padding: 12 }}><Spin size="small" /></div>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ color: "#64748b" }}>Cliente:</span>
+                <span style={{ fontWeight: 700, color: "#1e293b" }}>{clientName}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: ivaPct > 0 ? 6 : 0 }}>
+                <span style={{ color: "#64748b" }}>{ivaPct > 0 ? "Subtotal:" : "Total a Facturar:"}</span>
+                <span style={{ fontWeight: ivaPct > 0 ? 500 : 800, color: ivaPct > 0 ? "#475569" : "#10b981", fontSize: ivaPct > 0 ? 14 : 16 }}>
+                  ${subtotal.toLocaleString("es-AR")}
+                </span>
+              </div>
+              {ivaPct > 0 && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ color: "#64748b" }}>IVA ({ivaPct}%):</span>
+                    <span style={{ color: "#f59e0b" }}>+${ivaAmount.toLocaleString("es-AR")}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", paddingTop: 8, marginTop: 4 }}>
+                    <span style={{ color: "#64748b", fontWeight: 600 }}>Total c/IVA:</span>
+                    <span style={{ fontWeight: 800, color: "#10b981", fontSize: 16 }}>
+                      ${totalFactura.toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <Divider orientation="left" style={{ fontSize: 12, color: "#94a3b8" }}>Configuración Fiscal</Divider>

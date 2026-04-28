@@ -60,4 +60,15 @@ class BudgetViewSet(viewsets.ModelViewSet):
         if wo:
             from work_orders.models import WorkOrder
             WorkOrder.objects.filter(pk=wo.id).update(status=WorkOrder.Status.FACTURADA)
+        if budget.iva_pct > 0:
+            from finanzas.models import IvaRecord
+            from django.utils import timezone as tz
+            IvaRecord.objects.get_or_create(
+                budget=budget,
+                defaults={
+                    'amount': budget.iva_amount,
+                    'period': tz.now().date(),
+                    'registered_by': request.user,
+                },
+            )
         return Response(self.get_serializer(budget).data)

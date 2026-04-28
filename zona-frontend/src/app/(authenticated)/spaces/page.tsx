@@ -74,7 +74,6 @@ export default function SpacesHubPage() {
                     items={[
                         { key: "1", label: <span style={{ fontWeight: 600 }}><EnvironmentOutlined /> Terrenos</span>, children: <div style={{ padding: "32px" }}><LocationsTab /></div> },
                         { key: "2", label: <span style={{ fontWeight: 600 }}><BuildOutlined /> Estructuras</span>, children: <div style={{ padding: "32px" }}><StructuresTab /></div> },
-                        { key: "3", label: <span style={{ fontWeight: 600 }}><SwapOutlined /> Reservas</span>, children: <div style={{ padding: "32px" }}><RentalsTab /></div> },
                         { key: "4", label: <span style={{ fontWeight: 600 }}><DollarOutlined /> Contratos</span>, children: <div style={{ padding: "32px" }}><ContractsTab /></div> },
                         { key: "5", label: <span style={{ fontWeight: 600 }}><UserOutlined /> Propietarios</span>, children: <div style={{ padding: "32px" }}><LandlordsTab /></div> }
                     ]}
@@ -153,21 +152,30 @@ function LocationsTab() {
 
     const handleGeocode = async () => {
         const address = formProps.form?.getFieldValue('address');
-        if (!address) {
-            notification.warning({ message: "Ingresá una dirección primero para buscar las coordenadas" });
+        const localityField = formProps.form?.getFieldValue('locality');
+        
+        if (!address && !localityField) {
+            notification.warning({ message: "Ingresá una dirección o localidad para buscar en el mapa" });
             return;
         }
+
+        const searchQuery = [address, localityField].filter(Boolean).join(", ");
+        
         setIsGeocoding(true);
         try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&addressdetails=1`);
             const data = await res.json();
             if (data && data.length > 0) {
+                const addressObj = data[0].address || {};
+                const streetAddress = [addressObj.road, addressObj.house_number].filter(Boolean).join(" ");
                 formProps.form?.setFieldsValue({
+                    address: streetAddress || address || "",
                     latitude: parseFloat(data[0].lat),
-                    longitude: parseFloat(data[0].lon)
+                    longitude: parseFloat(data[0].lon),
+                    locality: addressObj.city || addressObj.town || addressObj.village || addressObj.state_district || addressObj.state || localityField || ""
                 });
             } else {
-                notification.warning({ message: "No se encontraron coordenadas para esa dirección" });
+                notification.warning({ message: "No se encontraron coordenadas para esa dirección y localidad" });
             }
         } catch {
             notification.error({ message: "Error al buscar coordenadas" });
@@ -188,7 +196,12 @@ function LocationsTab() {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLat}&lon=${currentLon}`);
             const data = await res.json();
             if (data && data.display_name) {
-                formProps.form?.setFieldsValue({ address: data.display_name });
+                const addressObj = data.address || {};
+                const streetAddress = [addressObj.road, addressObj.house_number].filter(Boolean).join(" ");
+                formProps.form?.setFieldsValue({ 
+                    address: streetAddress || data.display_name,
+                    locality: addressObj.city || addressObj.town || addressObj.village || addressObj.state_district || addressObj.state || ""
+                });
             } else {
                 notification.warning({ message: "No se encontró una dirección para esas coordenadas" });
             }
@@ -215,6 +228,7 @@ function LocationsTab() {
             <Table {...tableProps} rowKey="id" className="premium-table">
                 <Table.Column dataIndex="name" title="Nombre / Referencia" render={(val) => <Text strong>{val}</Text>} />
                 <Table.Column dataIndex="address" title="Dirección" />
+                <Table.Column dataIndex="locality" title="Localidad" render={(val) => val || <Text type="secondary">-</Text>} />
                 <Table.Column dataIndex="landlord_name" title="Propietario" render={(val) => val || <Text type="secondary">N/A</Text>} />
                 <Table.Column dataIndex="rent_amount" title="Alquiler" render={(val) => val ? `$${val}` : '-'} />
                 <Table.Column dataIndex="rent_period" title="Periodo" render={(val) => {
@@ -292,6 +306,9 @@ function LocationsTab() {
                                 size="large"
                             />
                         </Form.Item>
+                        <Form.Item label="Localidad" name="locality" help="Se autocompleta al buscar en Maps, pero podés editarlo">
+                            <Input placeholder="Ej: Pilar, CABA, Rosario" size="large" />
+                        </Form.Item>
                         <Row gutter={16}>
                             <Col span={12}><Form.Item label="Latitud" name="latitude"><InputNumber style={{ width: '100%' }} /></Form.Item></Col>
                             <Col span={12}><Form.Item label="Longitud" name="longitude"><InputNumber style={{ width: '100%' }} /></Form.Item></Col>
@@ -329,6 +346,39 @@ function StructuresTab() {
     });
     const structures: any[] = structuresResult?.data || [];
 
+    const { result: rentalsResult } = useList({
+        resource: "space-rentals",
+        pagination: { pageSize: 500 },
+        filters: [{ field: "status", operator: "eq", value: "activo" }],
+    });
+    const activeRentals: any[] = rentalsResult?.data || [];
+
+    const { result: ledSlotsResult } = useList({
+        resource: "led-slots",
+        pagination: { pageSize: 500 },
+        filters: [{ field: "status", operator: "eq", value: "activo" }],
+    });
+    const activeLedSlots: any[] = ledSlotsResult?.data || [];
+
+    const getAvailability = (record: any) => {
+        if (record.type === 'pantalla_led') {
+            const slots = activeLedSlots.filter((s: any) => s.structure === record.id);
+            const totalCap = record.led_total_seconds_per_hour || 3600;
+            const used = slots.reduce((sum: number, s: any) => sum + (s.seconds_per_hour || 0), 0);
+            const pct = Math.round((used / totalCap) * 100);
+            if (pct === 0) return { color: '#10b981', bg: '#ecfdf5', label: 'DISPONIBLE', pct: 0 };
+            if (pct >= 100) return { color: '#ef4444', bg: '#fef2f2', label: 'COMPLETO', pct: 100 };
+            return { color: '#f59e0b', bg: '#fffbeb', label: `${pct}% OCUPADO`, pct };
+        }
+        const faces = record.faces || [];
+        if (faces.length === 0) return { color: '#94a3b8', bg: '#f8fafc', label: 'SIN CARAS', pct: 0 };
+        const occupiedFaces = faces.filter((f: any) => activeRentals.some((r: any) => r.face === f.id));
+        const occupiedCount = occupiedFaces.length;
+        if (occupiedCount === 0) return { color: '#10b981', bg: '#ecfdf5', label: 'DISPONIBLE', pct: 0 };
+        if (occupiedCount >= faces.length) return { color: '#ef4444', bg: '#fef2f2', label: 'OCUPADO', pct: 100 };
+        return { color: '#f59e0b', bg: '#fffbeb', label: `${occupiedCount}/${faces.length} OCUPADAS`, pct: Math.round((occupiedCount / faces.length) * 100) };
+    };
+
     const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
     const [modalId, setModalId] = React.useState<any>(null);
 
@@ -361,8 +411,28 @@ function StructuresTab() {
         await formProps.onFinish?.(formData as any);
     };
 
-    const TYPE_COLORS: any = { monoposte: 'purple', frontlight: 'cyan', pantalla_led: 'orange', pared: 'default', otro: 'default' };
-    const TYPE_LABELS: any = { monoposte: 'Monoposte', frontlight: 'Frontlight', pantalla_led: 'Pantalla LED', pared: 'Pared/Medianera', otro: 'Otro' };
+    const TYPE_COLORS: any = { 
+        monoposte: 'purple', 
+        frontlight: 'cyan', 
+        backlight: 'blue',
+        pantalla_led: 'orange', 
+        medianera: 'volcano', 
+        refugio: 'green',
+        columna: 'geekblue',
+        cartelera_simple: 'magenta',
+        otro: 'default' 
+    };
+    const TYPE_LABELS: any = { 
+        monoposte: 'Monoposte', 
+        frontlight: 'Frontlight', 
+        backlight: 'Backlight',
+        pantalla_led: 'Pantalla LED', 
+        medianera: 'Medianera', 
+        refugio: 'Refugio',
+        columna: 'Columna',
+        cartelera_simple: 'Cartelera simple',
+        otro: 'Otro' 
+    };
 
     return (
         <div>
@@ -417,6 +487,14 @@ function StructuresTab() {
                                     <Tag color={record.is_active ? 'success' : 'default'} style={{ borderRadius: 10, fontSize: 11 }}>
                                         {record.is_active ? 'INSTALADO' : 'DESMONTADO'}
                                     </Tag>
+                                    {record.is_active && (() => {
+                                        const avail = getAvailability(record);
+                                        return (
+                                            <Tag style={{ borderRadius: 10, fontSize: 10, fontWeight: 700, background: avail.bg, color: avail.color, border: `1px solid ${avail.color}30` }}>
+                                                ● {avail.label}
+                                            </Tag>
+                                        );
+                                    })()}
                                 </div>
                                 <Text strong style={{ display: 'block', fontSize: 15, marginBottom: 2 }}>{record.name}</Text>
                                 <Text type="secondary" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>{record.location_name}</Text>
@@ -465,8 +543,12 @@ function StructuresTab() {
                                 <Select size="large" options={[
                                     { label: 'Monoposte', value: 'monoposte' },
                                     { label: 'Frontlight', value: 'frontlight' },
+                                    { label: 'Backlight', value: 'backlight' },
                                     { label: 'Pantalla LED', value: 'pantalla_led' },
-                                    { label: 'Pared/Medianera', value: 'pared' },
+                                    { label: 'Medianera', value: 'medianera' },
+                                    { label: 'Refugio', value: 'refugio' },
+                                    { label: 'Columna', value: 'columna' },
+                                    { label: 'Cartelera simple', value: 'cartelera_simple' },
                                     { label: 'Otro', value: 'otro' },
                                 ]} />
                             </Form.Item>
@@ -679,6 +761,7 @@ function RentalsTab() {
         pagination: { pageSize: 200 },
     });
     const { options: clientOptions } = useSelect({ resource: "clients", optionLabel: "name", optionValue: "id" });
+    const { options: campaignOptions } = useSelect({ resource: "campaigns", optionLabel: "name", optionValue: "id" });
 
     const STATUS_COLORS: Record<string, string> = { reservado: 'blue', activo: 'success', finalizado: 'default' };
 
@@ -703,6 +786,7 @@ function RentalsTab() {
                     </div>
                 )} />
                 <Table.Column dataIndex="client_name" title="Cliente" render={(v: string) => v || <Text type="secondary">—</Text>} />
+                <Table.Column dataIndex="campaign_name" title="Campaña" render={(v: string) => v ? <Tag color="orange">{v}</Tag> : <Text type="secondary">—</Text>} />
                 <Table.Column dataIndex="start_date" title="Inicio" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : '—'} />
                 <Table.Column dataIndex="end_date" title="Fin" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : '—'} />
                 <Table.Column dataIndex="price" title="Precio" width={120} render={(v: number) => v ? `$${Number(v).toLocaleString()}` : '—'} />
@@ -722,6 +806,9 @@ function RentalsTab() {
                     </Form.Item>
                     <Form.Item label="Cliente" name="client" rules={[{ required: true, message: "Requerido" }]}>
                         <Select size="large" options={clientOptions} placeholder="Seleccionar cliente..." showSearch optionFilterProp="label" />
+                    </Form.Item>
+                    <Form.Item label="Campaña (opcional)" name="campaign">
+                        <Select size="large" options={campaignOptions} placeholder="Vincular a una campaña..." showSearch optionFilterProp="label" allowClear />
                     </Form.Item>
                     <Row gutter={16}>
                         <Col span={12}>
@@ -751,6 +838,150 @@ function RentalsTab() {
                             </Form.Item>
                         </Col>
                     </Row>
+                </Form>
+            </Modal>
+        </div>
+    );
+}
+
+function LEDSlotsTab() {
+    const { tableProps } = useTable({ resource: "led-slots", syncWithLocation: false });
+    const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
+    const [modalId, setModalId] = React.useState<any>(null);
+
+    const { modalProps, formProps, show } = useModalForm({
+        resource: "led-slots",
+        action: modalAction,
+        id: modalId,
+        warnWhenUnsavedChanges: false,
+        successNotification: () => ({ message: modalAction === "create" ? "Slot LED creado" : "Slot LED actualizado", type: "success" as const })
+    });
+
+    const { options: structureOptions } = useSelect({
+        resource: "structures",
+        optionLabel: "name",
+        optionValue: "id",
+        filters: [{ field: "type", operator: "eq", value: "pantalla_led" }],
+    });
+    const { options: clientOptions } = useSelect({ resource: "clients", optionLabel: "name", optionValue: "id" });
+    const { options: campaignOptions } = useSelect({ resource: "campaigns", optionLabel: "name", optionValue: "id" });
+
+    const STATUS_COLORS: Record<string, string> = { activo: 'success', pausado: 'warning', finalizado: 'default' };
+
+    return (
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+                <div>
+                    <Title level={4} style={{ margin: 0 }}>Slots de Pantallas LED</Title>
+                    <Text type="secondary">Gestión de tiempo vendido por pantalla</Text>
+                </div>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => { setModalAction("create"); setModalId(null); show(); }}
+                    style={{ borderRadius: "10px", height: "40px", padding: "0 24px", fontWeight: 700, background: "#2563eb", boxShadow: "0 8px 15px rgba(37,99,235,0.2)", border: "none" }}
+                >
+                    Nuevo Slot LED
+                </Button>
+            </div>
+            <Table {...tableProps} rowKey="id" className="premium-table">
+                <Table.Column title="Pantalla" render={(_: any, r: any) => (
+                    <div>
+                        <Text strong>{r.structure_name || '—'}</Text>
+                        <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{r.location_name || ''}</Text>
+                    </div>
+                )} />
+                <Table.Column dataIndex="client_name" title="Cliente" render={(v: string) => v || <Text type="secondary">—</Text>} />
+                <Table.Column dataIndex="campaign_name" title="Campaña" render={(v: string) => v ? <Tag color="orange">{v}</Tag> : <Text type="secondary">—</Text>} />
+                <Table.Column title="Spot" render={(_: any, r: any) => (
+                    <Text>{r.duration} {r.time_unit} × {r.repetitions_per_hour}/h</Text>
+                )} />
+                <Table.Column dataIndex="start_date" title="Inicio" width={100} render={(v: string) => v ? dayjs(v).format("DD/MM/YY") : '—'} />
+                <Table.Column dataIndex="end_date" title="Fin" width={100} render={(v: string) => v ? dayjs(v).format("DD/MM/YY") : '—'} />
+                <Table.Column dataIndex="price" title="Precio" width={110} render={(v: number) => v ? `$${Number(v).toLocaleString()}` : '—'} />
+                <Table.Column dataIndex="status" title="Estado" width={100} render={(v: string) => (
+                    <Tag color={STATUS_COLORS[v] || 'default'} style={{ borderRadius: '12px', padding: '2px 12px' }}>{v?.toUpperCase()}</Tag>
+                )} />
+                <Table.Column title="" width={70} render={(_: any, record: any) => (
+                    <Button type="dashed" size="small" icon={<EditOutlined />}
+                        onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }} />
+                )} />
+            </Table>
+
+            <Modal {...modalProps} title={<b>{modalAction === "create" ? "Nuevo Slot LED" : "Editar Slot LED"}</b>} width={650} centered>
+                <Form {...formProps} layout="vertical">
+                    <Form.Item label="Pantalla LED" name="structure" rules={[{ required: true, message: "Requerido" }]}>
+                        <Select size="large" options={structureOptions} placeholder="Seleccionar pantalla..." showSearch optionFilterProp="label" />
+                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Cliente" name="client" rules={[{ required: true, message: "Requerido" }]}>
+                                <Select size="large" options={clientOptions} placeholder="Seleccionar..." showSearch optionFilterProp="label" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Campaña (opcional)" name="campaign">
+                                <Select size="large" options={campaignOptions} placeholder="Vincular campaña..." showSearch optionFilterProp="label" allowClear />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item label="Duración del Spot" name="duration" rules={[{ required: true }]}>
+                                <InputNumber size="large" style={{ width: '100%' }} min={1} placeholder="Ej: 15" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Unidad" name="time_unit" initialValue="segundos">
+                                <Select size="large" options={[
+                                    { label: 'Segundos', value: 'segundos' },
+                                    { label: 'Minutos', value: 'minutos' },
+                                    { label: 'Horas', value: 'horas' },
+                                ]} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Reps / hora" name="repetitions_per_hour" initialValue={1} rules={[{ required: true }]}>
+                                <InputNumber size="large" style={{ width: '100%' }} min={1} placeholder="Ej: 4" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item label="Inicio" name="start_date" rules={[{ required: true }]}>
+                                <Input type="date" size="large" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Fin" name="end_date" rules={[{ required: true }]}>
+                                <Input type="date" size="large" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Precio" name="price" rules={[{ required: true }]}>
+                                <InputNumber prefix="$" size="large" style={{ width: '100%' }} min={0} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Estado" name="status" initialValue="activo">
+                                <Select size="large" options={[
+                                    { label: 'Activo', value: 'activo' },
+                                    { label: 'Pausado', value: 'pausado' },
+                                    { label: 'Finalizado', value: 'finalizado' },
+                                ]} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="URL del Arte/Video" name="creative_url">
+                                <Input size="large" placeholder="https://..." />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Form.Item label="Notas" name="notes">
+                        <Input.TextArea rows={2} placeholder="Observaciones del slot..." />
+                    </Form.Item>
                 </Form>
             </Modal>
         </div>

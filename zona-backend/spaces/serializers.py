@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental
+from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot
 
 
 class LandlordSerializer(serializers.ModelSerializer):
@@ -80,7 +80,20 @@ class SpaceRentalSerializer(serializers.ModelSerializer):
     structure_name = serializers.ReadOnlyField(source='face.structure.name')
     location_name = serializers.ReadOnlyField(source='face.structure.location.name')
     client_name = serializers.ReadOnlyField(source='client.name')
+    campaign_name = serializers.ReadOnlyField(source='campaign.name')
 
     class Meta:
         model = SpaceRental
+        fields = '__all__'
+
+
+class LEDSlotSerializer(serializers.ModelSerializer):
+    client_name = serializers.ReadOnlyField(source='client.name')
+    campaign_name = serializers.ReadOnlyField(source='campaign.name')
+    structure_name = serializers.ReadOnlyField(source='structure.name')
+    location_name = serializers.ReadOnlyField(source='structure.location.name')
+    seconds_per_hour = serializers.ReadOnlyField()
+
+    class Meta:
+        model = LEDSlot
         fields = '__all__'

@@ -7,7 +7,7 @@ import { useGetIdentity, useList } from "@refinedev/core";
 import {
   Table, Button, Tag, Modal, Form, Input, InputNumber,
   Select, DatePicker, Space, Typography, Popconfirm,
-  Row, Col, Card, notification, Divider, Tooltip, Empty,
+  Row, Col, Card, notification, Divider, Tooltip, Empty, Tabs, Statistic,
 } from "antd";
 import {
   PlusOutlined, EditOutlined, DeleteOutlined,
@@ -15,6 +15,7 @@ import {
   FilterOutlined, ReloadOutlined, CalendarOutlined,
   FileTextOutlined, BankOutlined, TagOutlined,
   UserOutlined, LinkOutlined, CheckCircleOutlined, ToolOutlined,
+  AuditOutlined, SafetyOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { API_URL as API } from "@/config/api";
@@ -77,7 +78,46 @@ export default function FinanzasPage() {
   // Watch category to show stock section automatically
   const watchedCategory = Form.useWatch("category", form);
 
+  const [activeTab, setActiveTab] = useState("gastos");
+  const [ivaRecords, setIvaRecords] = useState<any[]>([]);
+  const [ivaResumen, setIvaResumen] = useState({ pendiente: 0, declarado: 0 });
+  const [loadingIva, setLoadingIva] = useState(false);
+  const [declaringId, setDeclaringId] = useState<number | null>(null);
+
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  const fetchIva = useCallback(async () => {
+    setLoadingIva(true);
+    try {
+      const [recRes, resRes] = await Promise.all([
+        axiosInstance.get(`${API}/iva-records/?page_size=200`),
+        axiosInstance.get(`${API}/iva-records/resumen/`),
+      ]);
+      setIvaRecords(Array.isArray(recRes.data) ? recRes.data : (recRes.data.results ?? []));
+      setIvaResumen(resRes.data);
+    } catch {
+      notification.error({ message: "Error al cargar IVA" });
+    } finally {
+      setLoadingIva(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTab === "iva") fetchIva();
+  }, [activeTab, fetchIva]);
+
+  const declareIva = async (id: number) => {
+    setDeclaringId(id);
+    try {
+      await axiosInstance.post(`${API}/iva-records/${id}/declare/`);
+      notification.success({ message: "IVA marcado como declarado" });
+      fetchIva();
+    } catch (e: any) {
+      notification.error({ message: e?.response?.data?.detail || "Error" });
+    } finally {
+      setDeclaringId(null);
+    }
+  };
 
   const { result: insumosResult } = useList<{ id: number; name: string; unit: string; stock_qty: string }>({
     resource: "products",
@@ -468,6 +508,16 @@ export default function FinanzasPage() {
         </div>
       </div>
 
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        style={{ marginTop: 4 }}
+        items={[
+        {
+          key: "gastos",
+          label: <span><ShoppingOutlined style={{ marginRight: 6 }} />Gastos</span>,
+          children: (<>
+
       {/* ── Stat Cards ──────────────────────────────────────────────── */}
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         {statCards.map((s) => (
@@ -563,6 +613,118 @@ export default function FinanzasPage() {
           rowClassName={() => "expense-row"}
         />
       </Card>
+
+      </>), // fin tab Gastos
+        },
+        {
+          key: "iva",
+          label: <span><AuditOutlined style={{ marginRight: 6 }} />IVA Fiscal</span>,
+          children: (
+            <div>
+              <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+                <Col xs={24} sm={12}>
+                  <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)", borderLeft: "4px solid #f59e0b" }}
+                    styles={{ body: { padding: "20px 24px" } }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "#fef3c7", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                        <SafetyOutlined />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 2 }}>IVA pendiente de declarar</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "#d97706", fontVariantNumeric: "tabular-nums" }}>
+                          ${Number(ivaResumen.pendiente).toLocaleString("es-AR")}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+                <Col xs={24} sm={12}>
+                  <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)", borderLeft: "4px solid #10b981" }}
+                    styles={{ body: { padding: "20px 24px" } }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "#d1fae5", color: "#059669", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                        <CheckCircleOutlined />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 2 }}>IVA declarado / pagado</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "#059669", fontVariantNumeric: "tabular-nums" }}>
+                          ${Number(ivaResumen.declarado).toLocaleString("es-AR")}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+
+              <Card variant="borderless" style={{ borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+                styles={{ body: { padding: 0 } }}>
+                <Table
+                  loading={loadingIva}
+                  dataSource={ivaRecords}
+                  rowKey="id"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: <Empty description="Sin registros de IVA" style={{ padding: "40px 0" }} /> }}
+                  columns={[
+                    {
+                      title: "Presupuesto",
+                      dataIndex: "budget_title",
+                      render: (v: string) => v ? <Tag color="blue">{v}</Tag> : "—",
+                    },
+                    {
+                      title: "Cliente",
+                      dataIndex: "client_name",
+                      render: (v: string) => v || "—",
+                    },
+                    {
+                      title: "Período",
+                      dataIndex: "period",
+                      render: (v: string) => dayjs(v).format("MM/YYYY"),
+                    },
+                    {
+                      title: "IVA cobrado",
+                      dataIndex: "amount",
+                      render: (v: string) => (
+                        <Text strong style={{ color: "#f59e0b" }}>${Number(v).toLocaleString("es-AR")}</Text>
+                      ),
+                    },
+                    {
+                      title: "Estado",
+                      dataIndex: "status",
+                      render: (v: string) => (
+                        <Tag color={v === "declarado" ? "green" : "orange"}>
+                          {v === "declarado" ? "Declarado" : "Pendiente"}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: "",
+                      key: "actions",
+                      render: (_: any, record: any) =>
+                        record.status === "pendiente" && isAdmin ? (
+                          <Popconfirm
+                            title="¿Marcar este IVA como declarado/pagado a AFIP?"
+                            onConfirm={() => declareIva(record.id)}
+                            okText="Sí" cancelText="No"
+                          >
+                            <Button
+                              size="small"
+                              type="primary"
+                              loading={declaringId === record.id}
+                              style={{ background: "#059669", borderColor: "#059669" }}
+                            >
+                              Marcar declarado
+                            </Button>
+                          </Popconfirm>
+                        ) : null,
+                    },
+                  ]}
+                />
+              </Card>
+            </div>
+          ),
+        },
+      ]} />
 
       {/* ── Modal Registrar / Editar Gasto ──────────────────────────── */}
       <Modal
