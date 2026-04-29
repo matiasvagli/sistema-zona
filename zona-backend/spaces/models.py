@@ -71,6 +71,10 @@ class Structure(models.Model):
         null=True, blank=True, default=3600,
         help_text="Segundos vendibles por hora para pantallas LED (3600 = 100%)"
     )
+    led_operating_hours = models.IntegerField(
+        null=True, blank=True, default=24,
+        help_text="Horas por día que opera la pantalla LED (1-24)"
+    )
 
     def __str__(self):
         return f"{self.name} ({self.location.name})"
@@ -99,7 +103,9 @@ class SpaceExpense(models.Model):
     
     expense_type = models.CharField(max_length=20, choices=ExpenseType.choices)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    date = models.DateField()
+    date = models.DateField(help_text="Fecha de pago o registro")
+    period_from = models.DateField(null=True, blank=True, help_text="Inicio del período que cubre este gasto")
+    period_to = models.DateField(null=True, blank=True, help_text="Fin del período que cubre este gasto")
     description = models.TextField(blank=True, null=True)
     receipt_file = models.FileField(upload_to='receipts/spaces/', null=True, blank=True)
 
@@ -193,6 +199,14 @@ class LEDSlot(models.Model):
     repetitions_per_hour = models.IntegerField(
         default=1,
         help_text="Cuántas veces se reproduce por hora"
+    )
+    hour_from = models.IntegerField(
+        null=True, blank=True,
+        help_text="Hora de inicio de la franja (0-23). Null = toda la jornada"
+    )
+    hour_to = models.IntegerField(
+        null=True, blank=True,
+        help_text="Hora de fin de la franja (0-23, exclusivo). Null = toda la jornada"
     )
 
     # Período y precio

@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { useList, useSelect } from "@refinedev/core";
+import { useList, useSelect, useInvalidate } from "@refinedev/core";
 import { useModalForm, useTable } from "@refinedev/antd";
 import {
     Typography, Table, Tag, Button, Modal, Form, Input, InputNumber,
-    Select, Space, Row, Col, Spin, Empty, Tabs, Card,
+    Select, Space, Row, Col, Spin, Empty, Tabs, Card, notification, Divider
 } from "antd";
 import { PlusOutlined, FundOutlined, EditOutlined, SwapOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { axiosInstance } from "@/utils/axios-instance";
 
 const { Title, Text } = Typography;
 
@@ -93,6 +94,9 @@ function CampaignsTab() {
         pagination: { pageSize: 200 },
         sorters: [{ field: "id", order: "desc" }],
     });
+    
+    const invalidate = useInvalidate();
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [modalAction, setModalAction] = useState<"create" | "edit">("create");
     const [modalId, setModalId] = useState<any>(null);
@@ -106,8 +110,63 @@ function CampaignsTab() {
     });
 
     const { options: clientOptions } = useSelect({ resource: "clients", optionLabel: "name", optionValue: "id" });
+    const { options: faceOptions } = useSelect({
+        resource: "structure-faces",
+        optionLabel: "display_name",
+        optionValue: "id",
+        filters: [{ field: "is_active", operator: "eq", value: true }],
+        pagination: { pageSize: 200 },
+    });
 
     const campaigns: any[] = result?.data || [];
+
+    const handleFormFinish = async (values: any) => {
+        const { link_face_id, rental_price, ...campaignValues } = values;
+        
+        if (modalAction === "create") {
+            setIsSubmitting(true);
+            try {
+                // 1. Crear campaña
+                const { data: campaignData } = await axiosInstance.post("/campaigns/", campaignValues);
+                const campaignId = campaignData.id;
+                
+                // 2. Si se seleccionó una cara, crear Reserva + Link
+                if (link_face_id) {
+                    const { data: rentalData } = await axiosInstance.post("/space-rentals/", {
+                        face: link_face_id,
+                        client: campaignValues.client,
+                        campaign: campaignId,
+                        start_date: campaignValues.start_date,
+                        end_date: campaignValues.end_date,
+                        price: rental_price || 0,
+                        status: 'reservado'
+                    });
+                    
+                    await axiosInstance.post("/campaign-spaces/", {
+                        campaign: campaignId,
+                        space_rental: rentalData.id,
+                        notes: "Auto-generado desde campaña"
+                    });
+                    notification.success({ message: "Campaña y Reserva creadas correctamente" });
+                } else {
+                    notification.success({ message: "Campaña creada correctamente" });
+                }
+                
+                invalidate({ resource: "campaigns", invalidates: ["list"] });
+                invalidate({ resource: "space-rentals", invalidates: ["list"] });
+                modalProps.onCancel?.(null as any);
+                formProps.form?.resetFields();
+            } catch (error) {
+                notification.error({ message: "Error al crear la campaña o reserva" });
+                console.error(error);
+            } finally {
+                setIsSubmitting(false);
+            }
+        } else {
+            // En modo edición usamos el onFinish default de refine
+            await formProps.onFinish?.(campaignValues);
+        }
+    };
 
     return (
         <div>
@@ -149,8 +208,8 @@ function CampaignsTab() {
                 </Table>
             )}
 
-            <Modal {...modalProps} title={<b>{modalAction === "create" ? "Nueva Campaña" : "Editar Campaña"}</b>} width={600} centered>
-                <Form {...formProps} layout="vertical">
+            <Modal {...modalProps} title={<b>{modalAction === "create" ? "Nueva Campaña" : "Editar Campaña"}</b>} width={650} centered okButtonProps={{ loading: isSubmitting }}>
+                <Form {...formProps} layout="vertical" onFinish={handleFormFinish}>
                     <Form.Item label="Nombre de la Campaña" name="name" rules={[{ required: true, message: "Requerido" }]}>
                         <Input size="large" placeholder="Ej: Campaña Verano 2025" />
                     </Form.Item>
@@ -185,6 +244,27 @@ function CampaignsTab() {
                     <Form.Item label="Presupuesto Total" name="budget_total" initialValue={0}>
                         <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} />
                     </Form.Item>
+
+                    {modalAction === "create" && (
+                        <>
+                            <Divider style={{ margin: "24px 0" }}>
+                                <span style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>ASIGNACIÓN DE ESTRUCTURA (OPCIONAL)</span>
+                            </Divider>
+                            <Row gutter={16} style={{ background: "#f8fafc", padding: "16px 16px 0", borderRadius: 12, marginBottom: 16 }}>
+                                <Col span={14}>
+                                    <Form.Item label="Vincular a Cartel/Cara" name="link_face_id" help="Se creará una Reserva comercial automáticamente">
+                                        <Select size="large" options={faceOptions} placeholder="Seleccionar espacio..." showSearch optionFilterProp="label" allowClear />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={10}>
+                                    <Form.Item label="Precio de Alquiler" name="rental_price" help="Costo del espacio">
+                                        <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                        </>
+                    )}
+
                     <Form.Item label="Notas" name="notes">
                         <Input.TextArea rows={3} placeholder="Referencias de diseño, observaciones, etc." />
                     </Form.Item>

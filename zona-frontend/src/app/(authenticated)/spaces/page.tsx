@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Tabs, Card, Table, Typography, Tag, Button, Modal, Form, Input, InputNumber, Select, Row, Col, Space, Upload, notification, Spin, Empty } from "antd";
-import { EnvironmentOutlined, BuildOutlined, DollarOutlined, UserOutlined, PlusOutlined, MinusCircleOutlined, UploadOutlined, EditOutlined, SwapOutlined, CameraOutlined, WarningOutlined } from "@ant-design/icons";
+import { EnvironmentOutlined, BuildOutlined, DollarOutlined, UserOutlined, PlusOutlined, MinusCircleOutlined, UploadOutlined, EditOutlined, SwapOutlined, CameraOutlined, WarningOutlined, ThunderboltOutlined, FileTextOutlined, ZoomInOutlined, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
 import { useSelect, useList } from "@refinedev/core";
 import { useModalForm, useTable } from "@refinedev/antd";
 import dayjs from "dayjs";
@@ -74,8 +74,11 @@ export default function SpacesHubPage() {
                     items={[
                         { key: "1", label: <span style={{ fontWeight: 600 }}><EnvironmentOutlined /> Terrenos</span>, children: <div style={{ padding: "32px" }}><LocationsTab /></div> },
                         { key: "2", label: <span style={{ fontWeight: 600 }}><BuildOutlined /> Estructuras</span>, children: <div style={{ padding: "32px" }}><StructuresTab /></div> },
+                        { key: "3", label: <span style={{ fontWeight: 600 }}><SwapOutlined /> Reservas</span>, children: <div style={{ padding: "32px" }}><RentalsTab /></div> },
+                        { key: "6", label: <span style={{ fontWeight: 600 }}><ThunderboltOutlined /> Slots LED</span>, children: <div style={{ padding: "32px" }}><LEDSlotsTab /></div> },
+                        { key: "7", label: <span style={{ fontWeight: 600 }}><FileTextOutlined /> Gastos</span>, children: <div style={{ padding: "32px" }}><GastosTab /></div> },
                         { key: "4", label: <span style={{ fontWeight: 600 }}><DollarOutlined /> Contratos</span>, children: <div style={{ padding: "32px" }}><ContractsTab /></div> },
-                        { key: "5", label: <span style={{ fontWeight: 600 }}><UserOutlined /> Propietarios</span>, children: <div style={{ padding: "32px" }}><LandlordsTab /></div> }
+                        { key: "5", label: <span style={{ fontWeight: 600 }}><UserOutlined /> Propietarios</span>, children: <div style={{ padding: "32px" }}><LandlordsTab /></div> },
                     ]}
                 />
             </Card>
@@ -99,6 +102,8 @@ export default function SpacesHubPage() {
                     background: #f1f5f9 !important;
                 }
                 .ant-tabs-nav::before { border-bottom: none !important; }
+                .photo-overlay:hover { background: rgba(0,0,0,0.35) !important; }
+                .photo-overlay:hover .zoom-icon { opacity: 1 !important; }
             `}</style>
         </div>
     );
@@ -136,12 +141,16 @@ function LocationsTab() {
         return e?.fileList;
     };
 
+    const NULLABLE_FK_FIELDS = ['landlord'];
+
     const handleFormFinish = async (values: any) => {
         const formData = new FormData();
         for (const key in values) {
             if (key === 'contract_file_raw') continue;
             if (values[key] !== undefined && values[key] !== null) {
                 formData.append(key, values[key]);
+            } else if (NULLABLE_FK_FIELDS.includes(key)) {
+                formData.append(key, '');
             }
         }
         if (values.contract_file_raw && values.contract_file_raw.length > 0) {
@@ -338,7 +347,335 @@ function LocationsTab() {
     );
 }
 
+function AvailabilityDetail({ availability }: { availability: any }) {
+    if (!availability) return null;
+
+    if (availability.type === 'led') {
+        const pct = availability.pct ?? 0;
+        const color = pct === 100 ? '#10b981' : pct === 0 ? '#ef4444' : '#f59e0b';
+        const label = pct === 100 ? 'DISPONIBLE' : pct === 0 ? 'COMPLETO' : `${pct}% libre`;
+        const availSec = Math.round(availability.available_day);
+        const availMin = (availSec / 60).toFixed(1);
+        const availHs  = (availSec / 3600).toFixed(2);
+        const opHours  = availability.operating_hours ?? 24;
+        return (
+            <div style={{ marginTop: 10, padding: '8px 10px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>
+                        PANTALLA LED · {opHours}hs/día
+                    </Text>
+                    <span style={{ fontSize: 11, fontWeight: 700, color }}>{label}</span>
+                </div>
+                <div style={{ background: '#e2e8f0', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 4, transition: 'width .3s' }} />
+                </div>
+                <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                    Libre/día: {availSec} seg · {availMin} min · {availHs} hs
+                </Text>
+            </div>
+        );
+    }
+
+    if (availability.type === 'faces') {
+        const faces: { id: number; name: string; occupied: boolean }[] = availability.faces || [];
+        if (faces.length === 0) return (
+            <div style={{ marginTop: 10, padding: '6px 10px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <Text type="secondary" style={{ fontSize: 11 }}>Sin caras configuradas</Text>
+            </div>
+        );
+        return (
+            <div style={{ marginTop: 10, padding: '8px 10px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <Text style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, display: 'block', marginBottom: 6 }}>
+                    CARAS
+                </Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {faces.map(f => (
+                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 12 }}>{f.name}</Text>
+                            <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 8,
+                                background: f.occupied ? '#fef2f2' : '#ecfdf5',
+                                color: f.occupied ? '#ef4444' : '#10b981',
+                            }}>
+                                {f.occupied ? 'OCUPADA' : 'LIBRE'}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+}
+
+// ── Modal de Detalle de Estructura (photo + info + mapa) ────────────────────
+function StructureDetailModal({
+    structure,
+    onClose,
+    typeColors,
+    typeLabels,
+}: {
+    structure: any;
+    onClose: () => void;
+    typeColors: Record<string, string>;
+    typeLabels: Record<string, string>;
+}) {
+    if (!structure) return null;
+
+    const av = structure.availability;
+    const lat = structure.location_latitude ? parseFloat(structure.location_latitude) : null;
+    const lon = structure.location_longitude ? parseFloat(structure.location_longitude) : null;
+    const hasMap = !!(lat && lon);
+
+    // Calcular estado general de disponibilidad para encabezado
+    const getRentalStatus = () => {
+        if (!av) return { label: 'Sin info', color: '#94a3b8', bg: '#f8fafc' };
+        if (av.type === 'led') {
+            const pct = av.pct ?? 0;
+            if (pct === 100) return { label: 'DISPONIBLE', color: '#10b981', bg: '#ecfdf5' };
+            if (pct === 0)   return { label: 'COMPLETO', color: '#ef4444', bg: '#fef2f2' };
+            return { label: `${pct}% LIBRE`, color: '#f59e0b', bg: '#fffbeb' };
+        }
+        if (av.type === 'faces') {
+            if (av.status === 'disponible') return { label: 'DISPONIBLE', color: '#10b981', bg: '#ecfdf5' };
+            if (av.status === 'ocupado')    return { label: 'OCUPADO', color: '#ef4444', bg: '#fef2f2' };
+            if (av.status === 'parcial')    return { label: 'PARCIALMENTE LIBRE', color: '#f59e0b', bg: '#fffbeb' };
+        }
+        return { label: 'Sin caras', color: '#94a3b8', bg: '#f8fafc' };
+    };
+    const rentalStatus = getRentalStatus();
+
+    return (
+        <Modal
+            open={!!structure}
+            onCancel={onClose}
+            footer={null}
+            width={860}
+            centered
+            styles={{ body: { padding: 0 } }}
+            style={{ borderRadius: 20, overflow: 'hidden' }}
+        >
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+                {/* ── Foto banner ── */}
+                <div style={{ position: 'relative', height: 280, background: '#0f172a', overflow: 'hidden' }}>
+                    {structure.photo ? (
+                        <img
+                            src={structure.photo}
+                            alt={structure.name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.88 }}
+                        />
+                    ) : (
+                        <div style={{
+                            height: '100%',
+                            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12,
+                        }}>
+                            <CameraOutlined style={{ fontSize: 56, color: '#475569' }} />
+                            <Text style={{ color: '#64748b', fontSize: 14 }}>Sin foto de instalación</Text>
+                        </div>
+                    )}
+
+                    {/* Overlay gradiente inferior */}
+                    <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0, height: 100,
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)',
+                    }} />
+
+                    {/* Tags sobre la foto */}
+                    <div style={{ position: 'absolute', top: 16, left: 20, display: 'flex', gap: 8 }}>
+                        <Tag color={typeColors[structure.type] || 'blue'} style={{ borderRadius: 10, fontSize: 12, padding: '2px 12px', fontWeight: 700, border: 'none' }}>
+                            {typeLabels[structure.type] || structure.type}
+                        </Tag>
+                        <Tag
+                            color={structure.is_active ? 'success' : 'default'}
+                            style={{ borderRadius: 10, fontSize: 12, padding: '2px 12px', fontWeight: 700, border: 'none' }}
+                        >
+                            {structure.is_active ? 'INSTALADO' : 'DESMONTADO'}
+                        </Tag>
+                    </div>
+
+                    {/* Nombre en la foto */}
+                    <div style={{ position: 'absolute', bottom: 16, left: 20, right: 20 }}>
+                        <div style={{ color: '#fff', fontSize: 22, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                            {structure.name}
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, marginTop: 4 }}>
+                            <EnvironmentOutlined style={{ marginRight: 6 }} />
+                            {structure.location_name}
+                            {structure.location_locality ? ` — ${structure.location_locality}` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── Cuerpo con info + mapa ── */}
+                <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: hasMap ? '1fr 1fr' : '1fr', gap: 24 }}>
+
+                    {/* Columna izquierda: info */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                        {/* Estado de alquiler */}
+                        <div style={{
+                            background: rentalStatus.bg,
+                            borderRadius: 14,
+                            padding: '14px 18px',
+                            border: `1px solid ${rentalStatus.color}30`,
+                        }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 6 }}>
+                                ESTADO DE ALQUILER
+                            </div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: rentalStatus.color }}>
+                                {rentalStatus.label}
+                            </div>
+                        </div>
+
+                        {/* Caras (si aplica) */}
+                        {av?.type === 'faces' && av.faces?.length > 0 && (
+                            <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 10 }}>
+                                    CARAS DE EXHIBICIÓN
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {av.faces.map((f: any) => (
+                                        <div key={f.id} style={{
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            padding: '6px 10px',
+                                            background: f.occupied ? '#fef2f2' : '#ecfdf5',
+                                            borderRadius: 8,
+                                        }}>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.name}</span>
+                                            <span style={{
+                                                display: 'flex', alignItems: 'center', gap: 4,
+                                                fontSize: 11, fontWeight: 700,
+                                                color: f.occupied ? '#ef4444' : '#10b981',
+                                            }}>
+                                                {f.occupied
+                                                    ? <><CloseCircleOutlined /> ALQUILADA</>
+                                                    : <><CheckCircleOutlined /> DISPONIBLE</>
+                                                }
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* LED info */}
+                        {av?.type === 'led' && (
+                            <div style={{ background: '#fffbeb', borderRadius: 14, padding: '14px 18px', border: '1px solid #fde68a' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: 1, marginBottom: 8 }}>
+                                    ⚡ PANTALLA LED
+                                </div>
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 11, color: '#92400e' }}>Horas operativas</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{av.operating_hours}hs/día</div>
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 11, color: '#92400e' }}>Libre por día</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{(av.available_day / 60).toFixed(0)} min</div>
+                                    </div>
+                                </div>
+                                <div style={{ background: '#fef3c7', borderRadius: 6, height: 8, marginTop: 10, overflow: 'hidden' }}>
+                                    <div style={{ width: `${av.pct}%`, height: '100%', background: av.pct > 50 ? '#10b981' : av.pct > 0 ? '#f59e0b' : '#ef4444', borderRadius: 6, transition: 'width .3s' }} />
+                                </div>
+                                <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>{av.pct}% disponible</Text>
+                            </div>
+                        )}
+
+                        {/* Datos del cartel */}
+                        <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 10 }}>
+                                DATOS DE LA ESTRUCTURA
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {structure.dimensions && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: 13, color: '#64748b' }}>Dimensiones</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{structure.dimensions}</span>
+                                    </div>
+                                )}
+                                {structure.installation_date && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: 13, color: '#64748b' }}><CalendarOutlined /> Instalación</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{dayjs(structure.installation_date).format('DD/MM/YYYY')}</span>
+                                    </div>
+                                )}
+                                {structure.location_address && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                        <span style={{ fontSize: 13, color: '#64748b', whiteSpace: 'nowrap' }}><EnvironmentOutlined /> Dirección</span>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', textAlign: 'right' }}>{structure.location_address}</span>
+                                    </div>
+                                )}
+                                {hasMap && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span style={{ fontSize: 13, color: '#64748b' }}>Coordenadas</span>
+                                        <a
+                                            href={`https://maps.google.com/?q=${lat},${lon}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}
+                                        >
+                                            Ver en Google Maps ↗
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Columna derecha: mapa */}
+                    {hasMap && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>
+                                UBICACIÓN EN MAPA
+                            </div>
+                            <div style={{
+                                borderRadius: 14,
+                                overflow: 'hidden',
+                                border: '1px solid #e2e8f0',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                                flex: 1,
+                                minHeight: 260,
+                            }}>
+                                <iframe
+                                    width="100%"
+                                    height="100%"
+                                    style={{ border: 0, display: 'block', minHeight: 260 }}
+                                    loading="lazy"
+                                    allowFullScreen
+                                    src={`https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`}
+                                />
+                            </div>
+                            <a
+                                href={`https://maps.google.com/?q=${lat},${lon}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{
+                                    display: 'block', textAlign: 'center',
+                                    padding: '8px 0',
+                                    borderRadius: 10,
+                                    background: '#2563eb',
+                                    color: '#fff',
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    textDecoration: 'none',
+                                }}
+                            >
+                                <EnvironmentOutlined style={{ marginRight: 6 }} />
+                                Abrir en Google Maps
+                            </a>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 function StructuresTab() {
+
     const { result: structuresResult, query: structuresQuery } = useList({
         resource: "structures",
         pagination: { pageSize: 200 },
@@ -346,41 +683,9 @@ function StructuresTab() {
     });
     const structures: any[] = structuresResult?.data || [];
 
-    const { result: rentalsResult } = useList({
-        resource: "space-rentals",
-        pagination: { pageSize: 500 },
-        filters: [{ field: "status", operator: "eq", value: "activo" }],
-    });
-    const activeRentals: any[] = rentalsResult?.data || [];
-
-    const { result: ledSlotsResult } = useList({
-        resource: "led-slots",
-        pagination: { pageSize: 500 },
-        filters: [{ field: "status", operator: "eq", value: "activo" }],
-    });
-    const activeLedSlots: any[] = ledSlotsResult?.data || [];
-
-    const getAvailability = (record: any) => {
-        if (record.type === 'pantalla_led') {
-            const slots = activeLedSlots.filter((s: any) => s.structure === record.id);
-            const totalCap = record.led_total_seconds_per_hour || 3600;
-            const used = slots.reduce((sum: number, s: any) => sum + (s.seconds_per_hour || 0), 0);
-            const pct = Math.round((used / totalCap) * 100);
-            if (pct === 0) return { color: '#10b981', bg: '#ecfdf5', label: 'DISPONIBLE', pct: 0 };
-            if (pct >= 100) return { color: '#ef4444', bg: '#fef2f2', label: 'COMPLETO', pct: 100 };
-            return { color: '#f59e0b', bg: '#fffbeb', label: `${pct}% OCUPADO`, pct };
-        }
-        const faces = record.faces || [];
-        if (faces.length === 0) return { color: '#94a3b8', bg: '#f8fafc', label: 'SIN CARAS', pct: 0 };
-        const occupiedFaces = faces.filter((f: any) => activeRentals.some((r: any) => r.face === f.id));
-        const occupiedCount = occupiedFaces.length;
-        if (occupiedCount === 0) return { color: '#10b981', bg: '#ecfdf5', label: 'DISPONIBLE', pct: 0 };
-        if (occupiedCount >= faces.length) return { color: '#ef4444', bg: '#fef2f2', label: 'OCUPADO', pct: 100 };
-        return { color: '#f59e0b', bg: '#fffbeb', label: `${occupiedCount}/${faces.length} OCUPADAS`, pct: Math.round((occupiedCount / faces.length) * 100) };
-    };
-
     const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
     const [modalId, setModalId] = React.useState<any>(null);
+    const [previewStructure, setPreviewStructure] = React.useState<any>(null);
 
     const { modalProps, formProps, show } = useModalForm({
         resource: "structures",
@@ -460,18 +765,36 @@ function StructuresTab() {
                                 hoverable
                                 cover={
                                     record.photo ? (
-                                        <img
-                                            src={record.photo}
-                                            alt={record.name}
-                                            style={{ height: 160, objectFit: 'cover', width: '100%' }}
-                                        />
+                                        <div
+                                            style={{ position: 'relative', cursor: 'pointer' }}
+                                            onClick={() => setPreviewStructure(record)}
+                                        >
+                                            <img
+                                                src={record.photo}
+                                                alt={record.name}
+                                                style={{ height: 160, objectFit: 'cover', width: '100%', display: 'block' }}
+                                            />
+                                            <div style={{
+                                                position: 'absolute', inset: 0,
+                                                background: 'rgba(0,0,0,0)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                transition: 'background .2s',
+                                            }}
+                                                className="photo-overlay"
+                                            >
+                                                <ZoomInOutlined style={{ fontSize: 32, color: '#fff', opacity: 0, transition: 'opacity .2s' }} className="zoom-icon" />
+                                            </div>
+                                        </div>
                                     ) : (
-                                        <div style={{
-                                            height: 160,
-                                            background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            flexDirection: 'column', gap: 8,
-                                        }}>
+                                        <div
+                                            style={{
+                                                height: 160,
+                                                background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                flexDirection: 'column', gap: 8, cursor: 'pointer',
+                                            }}
+                                            onClick={() => setPreviewStructure(record)}
+                                        >
                                             <CameraOutlined style={{ fontSize: 36, color: '#94a3b8' }} />
                                             <Text type="secondary" style={{ fontSize: 12 }}>Sin foto de instalación</Text>
                                         </div>
@@ -480,6 +803,7 @@ function StructuresTab() {
                                 styles={{ body: { padding: 16 } }}
                                 style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #f1f5f9' }}
                             >
+                                {/* Header: tipo + estado */}
                                 <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
                                     <Tag color={TYPE_COLORS[record.type] || 'blue'} style={{ borderRadius: 10, fontSize: 11 }}>
                                         {TYPE_LABELS[record.type] || record.type}
@@ -487,35 +811,39 @@ function StructuresTab() {
                                     <Tag color={record.is_active ? 'success' : 'default'} style={{ borderRadius: 10, fontSize: 11 }}>
                                         {record.is_active ? 'INSTALADO' : 'DESMONTADO'}
                                     </Tag>
-                                    {record.is_active && (() => {
-                                        const avail = getAvailability(record);
-                                        return (
-                                            <Tag style={{ borderRadius: 10, fontSize: 10, fontWeight: 700, background: avail.bg, color: avail.color, border: `1px solid ${avail.color}30` }}>
-                                                ● {avail.label}
-                                            </Tag>
-                                        );
-                                    })()}
                                 </div>
+
+                                {/* Nombre y ubicación */}
                                 <Text strong style={{ display: 'block', fontSize: 15, marginBottom: 2 }}>{record.name}</Text>
                                 <Text type="secondary" style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>{record.location_name}</Text>
                                 {record.dimensions && (
-                                    <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{record.dimensions}</Text>
+                                    <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>{record.dimensions}</Text>
                                 )}
+
+                                {/* Disponibilidad detallada */}
+                                {record.is_active && <AvailabilityDetail availability={record.availability} />}
+
+                                {/* Alerta sin OT */}
                                 {record.is_active && !record.has_installation_ot && (
                                     <div style={{
                                         background: '#fef3c7', border: '1px solid #fcd34d',
-                                        borderRadius: 8, padding: '5px 10px', marginTop: 10,
+                                        borderRadius: 8, padding: '5px 10px', marginTop: 8,
                                         fontSize: 11, color: '#92400e', display: 'flex', alignItems: 'center', gap: 5,
                                     }}>
                                         <WarningOutlined /> Sin OT de instalación
                                     </div>
                                 )}
+
                                 <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    {record.faces?.length > 0 ? (
-                                        <Tag color="cyan" style={{ borderRadius: 10 }}>
-                                            {record.faces.length} cara{record.faces.length !== 1 ? 's' : ''}
-                                        </Tag>
-                                    ) : <span />}
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<ZoomInOutlined />}
+                                        onClick={() => setPreviewStructure(record)}
+                                        style={{ color: '#2563eb', fontSize: 12 }}
+                                    >
+                                        Ver detalle
+                                    </Button>
                                     <Button
                                         type="dashed"
                                         size="small"
@@ -530,6 +858,14 @@ function StructuresTab() {
                     ))}
                 </Row>
             )}
+
+            {/* ── Modal de Detalle de Estructura ── */}
+            <StructureDetailModal
+                structure={previewStructure}
+                onClose={() => setPreviewStructure(null)}
+                typeColors={TYPE_COLORS}
+                typeLabels={TYPE_LABELS}
+            />
 
             <Modal {...modalProps} title={<b>{modalAction === "create" ? "Registrar Estructura" : "Editar Estructura"}</b>} width={700} centered>
                 <Form {...formProps} layout="vertical" onFinish={handleFormFinish}>
@@ -565,6 +901,36 @@ function StructuresTab() {
                             </Form.Item>
                         </Col>
                     </Row>
+
+                    <Form.Item noStyle shouldUpdate={(prev, cur) => prev.type !== cur.type}>
+                        {({ getFieldValue }) => getFieldValue('type') === 'pantalla_led' && (
+                            <Card size="small" style={{ background: '#f8fafc', borderRadius: 12, marginBottom: 16 }}
+                                title={<span style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>⚡ Configuración LED</span>}>
+                                <Row gutter={16}>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label="Horas operativas por día"
+                                            name="led_operating_hours"
+                                            initialValue={24}
+                                            help="Cuántas horas por día está encendida (ej: 18 = 6am a medianoche)"
+                                        >
+                                            <InputNumber size="large" style={{ width: '100%' }} min={1} max={24} addonAfter="hs/día" />
+                                        </Form.Item>
+                                    </Col>
+                                    <Col span={12}>
+                                        <Form.Item
+                                            label="Segundos vendibles por hora"
+                                            name="led_total_seconds_per_hour"
+                                            initialValue={3600}
+                                            help="3600 = 100% de la hora. Bajá si dejás pausas entre spots"
+                                        >
+                                            <InputNumber size="large" style={{ width: '100%' }} min={1} max={3600} addonAfter="seg/h" />
+                                        </Form.Item>
+                                    </Col>
+                                </Row>
+                            </Card>
+                        )}
+                    </Form.Item>
 
                     {modalAction === "edit" && (
                         <Form.Item
@@ -629,7 +995,7 @@ function ContractsTab() {
     if (filterStatus !== 'all') {
         filteredData = filteredData.filter(record => {
             if (!record.contract_end_date) return filterStatus === 'no_contract';
-            const daysLeft = Math.ceil((new Date(record.contract_end_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+            const daysLeft = dayjs(record.contract_end_date).diff(dayjs(), 'day');
             if (filterStatus === 'expired') return daysLeft < 0;
             if (filterStatus === 'warning') return daysLeft >= 0 && daysLeft <= 30;
             if (filterStatus === 'ok') return daysLeft > 30;
@@ -660,7 +1026,7 @@ function ContractsTab() {
                 <Table.Column dataIndex="landlord_name" title="Propietario" render={(val) => val || <Text type="secondary">N/A</Text>} />
                 <Table.Column dataIndex="contract_end_date" title="Vencimiento" render={(val) => {
                     if (!val) return <Text type="secondary">Sin contrato</Text>;
-                    const daysLeft = Math.ceil((new Date(val).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                    const daysLeft = dayjs(val).diff(dayjs(), 'day');
                     if (daysLeft < 0) return <Tag color="error">Vencido hace {-daysLeft} días</Tag>;
                     if (daysLeft < 30) return <Tag color="warning">Vence en {daysLeft} días</Tag>;
                     return <Tag color="success">Vence en {daysLeft} días</Tag>;
@@ -979,8 +1345,231 @@ function LEDSlotsTab() {
                             </Form.Item>
                         </Col>
                     </Row>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Franja desde (hora)" name="hour_from" help="Ej: 18 para prime time. Vacío = toda la jornada">
+                                <InputNumber size="large" style={{ width: '100%' }} min={0} max={23} placeholder="0–23" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Franja hasta (hora)" name="hour_to" help="Ej: 24 = hasta medianoche (exclusivo). Vacío = toda la jornada">
+                                <InputNumber size="large" style={{ width: '100%' }} min={0} max={24} placeholder="0–24" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
                     <Form.Item label="Notas" name="notes">
                         <Input.TextArea rows={2} placeholder="Observaciones del slot..." />
+                    </Form.Item>
+                </Form>
+            </Modal>
+        </div>
+    );
+}
+
+const EXPENSE_TYPE_LABELS: Record<string, string> = {
+    alquiler: 'Alquiler Terreno',
+    luz: 'Luz / Energía',
+    seguro: 'Seguro',
+    impuesto: 'Impuesto Municipal',
+    mantenimiento: 'Mantenimiento / Reparación',
+    otro: 'Otro',
+};
+
+const EXPENSE_TYPE_COLORS: Record<string, string> = {
+    alquiler: 'blue',
+    luz: 'gold',
+    seguro: 'purple',
+    impuesto: 'red',
+    mantenimiento: 'orange',
+    otro: 'default',
+};
+
+const RENT_PERIOD_LABELS: Record<string, string> = {
+    mensual: 'mensual', bimestral: 'bimestral', semestral: 'semestral',
+    anual: 'anual', por_contrato: 'pago único por contrato',
+};
+
+function GastosTab() {
+    const { tableProps, setFilters } = useTable({
+        resource: "space-expenses",
+        syncWithLocation: false,
+        pagination: { pageSize: 50 },
+        sorters: { initial: [{ field: "date", order: "desc" }] },
+    });
+
+    const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
+    const [modalId, setModalId] = React.useState<any>(null);
+    const [filterLocation, setFilterLocation] = React.useState<any>(null);
+    const [filterType, setFilterType] = React.useState<any>(null);
+
+    const { modalProps, formProps, show } = useModalForm({
+        resource: "space-expenses",
+        action: modalAction,
+        id: modalId,
+        warnWhenUnsavedChanges: false,
+        successNotification: () => ({ message: modalAction === "create" ? "Gasto registrado" : "Gasto actualizado", type: "success" as const }),
+    });
+
+    const { options: locationOptions } = useSelect({ resource: "locations", optionLabel: "name", optionValue: "id", pagination: { pageSize: 200 } });
+    const { options: structureOptions } = useSelect({ resource: "structures", optionLabel: "name", optionValue: "id", pagination: { pageSize: 200 } });
+
+    // Datos completos de terrenos para auto-completar monto de alquiler
+    const { data: locationsListData } = useList({ resource: "locations", pagination: { pageSize: 200 } });
+    const allLocations: any[] = (locationsListData as any)?.data || [];
+
+    // Observamos los campos del form para auto-completar
+    const watchedExpType = Form.useWatch('expense_type', formProps.form);
+    const watchedLocId   = Form.useWatch('location', formProps.form);
+
+    React.useEffect(() => {
+        if (watchedExpType !== 'alquiler' || !watchedLocId) return;
+        const loc = allLocations.find((l: any) => l.id === watchedLocId);
+        if (!loc) return;
+        formProps.form?.setFieldsValue({ amount: Number(loc.rent_amount) });
+        if (loc.rent_period === 'por_contrato') {
+            formProps.form?.setFieldsValue({
+                period_from: loc.contract_start_date || undefined,
+                period_to:   loc.contract_end_date   || undefined,
+            });
+        }
+    }, [watchedExpType, watchedLocId]);
+
+    const selectedLoc = allLocations.find((l: any) => l.id === watchedLocId);
+    const showRentHint = watchedExpType === 'alquiler' && selectedLoc;
+    const isContrato   = selectedLoc?.rent_period === 'por_contrato';
+
+    const handleFilterLocation = (val: any) => {
+        setFilterLocation(val);
+        setFilters(val ? [{ field: "location", operator: "eq", value: val }] : []);
+    };
+    const handleFilterType = (val: any) => {
+        setFilterType(val);
+        setFilters(val ? [{ field: "expense_type", operator: "eq", value: val }] : []);
+    };
+
+    return (
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <Title level={4} style={{ margin: 0 }}>Gastos de Vía Pública</Title>
+                    <Text type="secondary" style={{ fontSize: 13 }}>Alquiler, luz, seguros, impuestos y mantenimiento por terreno o estructura</Text>
+                </div>
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => { setModalAction("create"); setModalId(null); show(); }}
+                    style={{ borderRadius: 10, height: 40, padding: "0 24px", fontWeight: 700, background: "#2563eb", border: "none", boxShadow: "0 8px 15px rgba(37,99,235,0.2)" }}
+                >
+                    Registrar Gasto
+                </Button>
+            </div>
+
+            {/* Filtros */}
+            <Row gutter={12} style={{ marginBottom: 16 }}>
+                <Col span={10}>
+                    <Select allowClear showSearch optionFilterProp="label" placeholder="Filtrar por terreno"
+                        options={locationOptions} value={filterLocation} onChange={handleFilterLocation}
+                        style={{ width: '100%' }} size="large" />
+                </Col>
+                <Col span={8}>
+                    <Select allowClear placeholder="Filtrar por tipo" value={filterType} onChange={handleFilterType}
+                        style={{ width: '100%' }} size="large"
+                        options={Object.entries(EXPENSE_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+                </Col>
+            </Row>
+
+            {/* Tabla */}
+            <Table {...tableProps} rowKey="id" className="premium-table">
+                <Table.Column dataIndex="expense_type" title="Tipo" render={(v: string) => (
+                    <Tag color={EXPENSE_TYPE_COLORS[v] || 'default'} style={{ borderRadius: 10 }}>
+                        {EXPENSE_TYPE_LABELS[v] || v}
+                    </Tag>
+                )} />
+                <Table.Column title="Terreno / Estructura" render={(_: any, r: any) => (
+                    <div>
+                        {r.location_name && <Text style={{ display: 'block', fontSize: 13 }}><EnvironmentOutlined style={{ marginRight: 4 }} />{r.location_name}</Text>}
+                        {r.structure_name && <Text type="secondary" style={{ display: 'block', fontSize: 12 }}><BuildOutlined style={{ marginRight: 4 }} />{r.structure_name}</Text>}
+                        {!r.location_name && !r.structure_name && <Text type="secondary">—</Text>}
+                    </div>
+                )} />
+                <Table.Column title="Período que cubre" render={(_: any, r: any) => (
+                    r.period_from
+                        ? <Text style={{ fontSize: 12 }}>{dayjs(r.period_from).format("DD/MM/YYYY")} → {r.period_to ? dayjs(r.period_to).format("DD/MM/YYYY") : '...'}</Text>
+                        : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+                )} />
+                <Table.Column dataIndex="date" title="Fecha pago" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : '—'} />
+                <Table.Column dataIndex="amount" title="Monto" width={130} render={(v: number) => (
+                    <Text strong style={{ color: '#ef4444' }}>-${Number(v).toLocaleString('es-AR')}</Text>
+                )} />
+                <Table.Column dataIndex="description" title="Descripción" render={(v: string) => v ? <Text type="secondary" style={{ fontSize: 12 }}>{v}</Text> : null} />
+                <Table.Column title="" width={70} render={(_: any, record: any) => (
+                    <Button type="dashed" size="small" icon={<EditOutlined />}
+                        onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }} />
+                )} />
+            </Table>
+
+            {/* Modal crear/editar gasto */}
+            <Modal {...modalProps} title={<b>{modalAction === "create" ? "Registrar Gasto" : "Editar Gasto"}</b>} width={620} centered>
+                <Form {...formProps} layout="vertical">
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Tipo de Gasto" name="expense_type" rules={[{ required: true }]}>
+                                <Select size="large" options={Object.entries(EXPENSE_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Terreno (si aplica)" name="location">
+                                <Select size="large" options={locationOptions} placeholder="Seleccionar..." allowClear showSearch optionFilterProp="label" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    {/* Hint alquiler: monto pre-cargado desde el contrato */}
+                    {showRentHint && (
+                        <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '8px 12px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
+                            Monto cargado desde el contrato del terreno: <strong>${Number(selectedLoc.rent_amount).toLocaleString('es-AR')} {RENT_PERIOD_LABELS[selectedLoc.rent_period] || selectedLoc.rent_period}</strong>.
+                            {' '}Si el importe cambió, modificalo acá y después actualizalo en el terreno.
+                            {isContrato && selectedLoc.contract_start_date && (
+                                <span> · Período del contrato auto-cargado.</span>
+                            )}
+                        </div>
+                    )}
+
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Monto" name="amount" rules={[{ required: true }]}>
+                                <InputNumber prefix="$" size="large" style={{ width: '100%' }} min={0} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Estructura (si aplica)" name="structure">
+                                <Select size="large" options={structureOptions} placeholder="Seleccionar..." allowClear showSearch optionFilterProp="label" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                        <Col span={8}>
+                            <Form.Item label="Fecha de pago" name="date" rules={[{ required: true }]}>
+                                <Input type="date" size="large" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Período desde" name="period_from"
+                                help={isContrato ? "Auto-cargado del contrato, podés modificarlo" : "Ej: 01/01/2026"}>
+                                <Input type="date" size="large" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={8}>
+                            <Form.Item label="Período hasta" name="period_to"
+                                help={isContrato ? "Auto-cargado del contrato, podés modificarlo" : "Ej: 31/01/2026"}>
+                                <Input type="date" size="large" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Form.Item label="Descripción / Referencia" name="description">
+                        <Input.TextArea rows={2} placeholder="Ej: Factura EDESUR Enero 2026, Póliza seguro anual..." />
                     </Form.Item>
                 </Form>
             </Modal>
