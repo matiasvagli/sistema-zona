@@ -62,12 +62,24 @@ export default function WorkOrderDetail() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [assigningClient, setAssigningClient] = useState(false);
 
+  const [changeBudgetOpen, setChangeBudgetOpen] = useState(false);
+  const [selectedBudgetId, setSelectedBudgetId] = useState<number | null>(null);
+  const [changingBudget, setChangingBudget] = useState(false);
+
   const { result: sectorsResult } = useList({
     resource: "sectors",
     sorters: [{ field: "order", order: "asc" }],
   });
   const { result: productsResult } = useList({ resource: "products", pagination: { pageSize: 200 } });
   const { result: clientsResult } = useList({ resource: "clients", pagination: { pageSize: 200 } });
+  
+  const { result: clientBudgetsResult } = useList({
+    resource: "budgets",
+    filters: ot?.client ? [{ field: "client", operator: "eq", value: ot.client }] : [],
+    pagination: { pageSize: 100 },
+    queryOptions: { enabled: !!ot?.client }
+  });
+  const clientBudgets: any[] = clientBudgetsResult?.data || [];
 
   const allSectors: any[] = sectorsResult?.data || [];
   const allProducts: any[] = productsResult?.data || [];
@@ -231,6 +243,22 @@ export default function WorkOrderDetail() {
     }
   };
 
+  const changeBudget = async () => {
+    if (!selectedBudgetId) return;
+    setChangingBudget(true);
+    try {
+      await axiosInstance.patch(`${API}/work-orders/${id}/`, { budget: selectedBudgetId });
+      notification.success({ message: "Presupuesto actualizado" });
+      setChangeBudgetOpen(false);
+      setSelectedBudgetId(null);
+      fetchOT();
+    } catch {
+      notification.error({ message: "Error al cambiar presupuesto" });
+    } finally {
+      setChangingBudget(false);
+    }
+  };
+
   const createBudget = async () => {
     try {
       const { data } = await axiosInstance.post(`${API}/work-orders/${id}/create-budget/`);
@@ -283,6 +311,7 @@ export default function WorkOrderDetail() {
               isAdmin={!!(identity?.is_staff || identity?.rol === 'ceo' || identity?.rol === 'admin')}
               onAssignClient={() => setAssignClientOpen(true)}
               onCreateBudget={createBudget}
+              onChangeBudget={() => setChangeBudgetOpen(true)}
             />
 
             <WorkOrderSectors
@@ -446,6 +475,40 @@ export default function WorkOrderDetail() {
               <Option key={c.id} value={c.id}>{c.name}</Option>
             ))}
           </Select>
+        </div>
+      </Modal>
+      
+      <Modal
+        title="Cambiar Presupuesto de la OT"
+        open={changeBudgetOpen}
+        onOk={changeBudget}
+        onCancel={() => { setChangeBudgetOpen(false); setSelectedBudgetId(null); }}
+        confirmLoading={changingBudget}
+        okText="Vincular"
+        cancelText="Cancelar"
+        okButtonProps={{ disabled: !selectedBudgetId }}
+      >
+        <div style={{ padding: "10px 0" }}>
+          <p style={{ marginBottom: 8 }}>Seleccioná el presupuesto que querés asociar a esta orden:</p>
+          <Select
+            showSearch
+            placeholder="Buscar presupuesto del cliente..."
+            style={{ width: "100%" }}
+            optionFilterProp="children"
+            onChange={setSelectedBudgetId}
+            value={selectedBudgetId}
+          >
+            {clientBudgets.map((b: any) => (
+              <Option key={b.id} value={b.id}>
+                PRE-{String(b.id).padStart(4, '0')} — {b.title || "Sin título"} ({dayjs(b.created_at).format("DD/MM/YYYY")})
+              </Option>
+            ))}
+          </Select>
+          {clientBudgets.length === 0 && (
+            <p style={{ color: "#fa8c16", marginTop: 8, fontSize: 13 }}>
+              Este cliente no posee presupuestos disponibles.
+            </p>
+          )}
         </div>
       </Modal>
 

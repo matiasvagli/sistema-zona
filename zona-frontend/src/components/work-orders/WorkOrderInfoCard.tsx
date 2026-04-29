@@ -19,6 +19,7 @@ interface WorkOrderInfoCardProps {
   isAdmin?: boolean;
   onAssignClient?: () => void;
   onCreateBudget?: () => void;
+  onChangeBudget?: () => void;
 }
 
 export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
@@ -31,6 +32,7 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
   isAdmin,
   onAssignClient,
   onCreateBudget,
+  onChangeBudget,
 }) => {
   return (
     <div style={{ 
@@ -144,15 +146,38 @@ export const WorkOrderInfoCard: React.FC<WorkOrderInfoCardProps> = ({
           </div>
           <div style={{ flex: 1, minWidth: 180 }}>
             <Text type="secondary" style={{ fontSize: 12 }}>Presupuesto</Text>
-            <div style={{ marginTop: 4 }}>
-              {ot.budget_title
-                ? <Tag color="blue">{ot.budget_title}</Tag>
-                : isAdmin
-                  ? <Tooltip title={!ot.client ? "Primero asigná un cliente" : ""}>
-                      <Button size="small" type="dashed" icon={<FileAddOutlined />} onClick={onCreateBudget} disabled={!ot.client}>Crear presupuesto</Button>
-                    </Tooltip>
-                  : <Text type="secondary" style={{ fontSize: 12 }}>Sin vincular</Text>
-              }
+            <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              {ot.budget_title ? (
+                <>
+                  <Tooltip title="Ir a editar presupuesto">
+                    <Tag 
+                      color="blue" 
+                      style={{ cursor: "pointer", fontSize: 13, padding: "2px 8px" }}
+                      onClick={() => {
+                        if (typeof window !== 'undefined') window.location.href = `/budgets/${ot.budget}`;
+                      }}
+                    >
+                      {ot.budget_title}
+                    </Tag>
+                  </Tooltip>
+                  {isAdmin && (
+                    <Button 
+                      size="small" 
+                      type="text" 
+                      icon={<FileAddOutlined style={{ color: "#1890ff" }} />} 
+                      onClick={onChangeBudget}
+                    >
+                      Cambiar
+                    </Button>
+                  )}
+                </>
+              ) : isAdmin ? (
+                <Tooltip title={!ot.client ? "Primero asigná un cliente" : ""}>
+                  <Button size="small" type="dashed" icon={<FileAddOutlined />} onClick={onCreateBudget} disabled={!ot.client}>Crear presupuesto</Button>
+                </Tooltip>
+              ) : (
+                <Text type="secondary" style={{ fontSize: 12 }}>Sin vincular</Text>
+              )}
             </div>
           </div>
           {ot.structure_name && (

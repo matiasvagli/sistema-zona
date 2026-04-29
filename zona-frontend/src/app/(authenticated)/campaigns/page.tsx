@@ -5,23 +5,30 @@ import { useList, useSelect, useInvalidate } from "@refinedev/core";
 import { useModalForm, useTable } from "@refinedev/antd";
 import {
     Typography, Table, Tag, Button, Modal, Form, Input, InputNumber,
-    Select, Space, Row, Col, Spin, Empty, Tabs, Card, notification, Divider
+    Select, Space, Row, Col, Spin, Empty, Tabs, Card, notification, Divider, Popconfirm
 } from "antd";
-import { PlusOutlined, FundOutlined, EditOutlined, SwapOutlined } from "@ant-design/icons";
+import { PlusOutlined, FundOutlined, EditOutlined, SwapOutlined, DeleteOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { axiosInstance } from "@/utils/axios-instance";
+import { API_URL } from "@/config/api";
 
 const { Title, Text } = Typography;
 
 const STATUS_COLORS: Record<string, string> = {
     borrador: "default",
+    presupuesto: "orange",
+    aprobado: "geekblue",
     activa: "success",
     finalizada: "blue",
+    cancelada: "error",
 };
 const STATUS_LABELS: Record<string, string> = {
     borrador: "Borrador",
+    presupuesto: "Presupuesto",
+    aprobado: "Aprobado",
     activa: "Activa",
     finalizada: "Finalizada",
+    cancelada: "Cancelada",
 };
 
 export default function CampaignsPage() {
@@ -97,6 +104,7 @@ function CampaignsTab() {
     
     const invalidate = useInvalidate();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [approvingId, setApprovingId] = useState<number | null>(null);
 
     const [modalAction, setModalAction] = useState<"create" | "edit">("create");
     const [modalId, setModalId] = useState<any>(null);
@@ -118,53 +126,76 @@ function CampaignsTab() {
         pagination: { pageSize: 200 },
     });
 
-    const campaigns: any[] = result?.data || [];
+    const campaigns: any[] = (result?.data || []).filter(
+        (c: any) => !["presupuesto", "borrador"].includes(c.status)
+    );
 
-    const handleFormFinish = async (values: any) => {
-        const { link_face_id, rental_price, ...campaignValues } = values;
-        
-        if (modalAction === "create") {
-            setIsSubmitting(true);
-            try {
-                // 1. Crear campaña
-                const { data: campaignData } = await axiosInstance.post("/campaigns/", campaignValues);
-                const campaignId = campaignData.id;
-                
-                // 2. Si se seleccionó una cara, crear Reserva + Link
-                if (link_face_id) {
-                    const { data: rentalData } = await axiosInstance.post("/space-rentals/", {
-                        face: link_face_id,
-                        client: campaignValues.client,
-                        campaign: campaignId,
-                        start_date: campaignValues.start_date,
-                        end_date: campaignValues.end_date,
-                        price: rental_price || 0,
-                        status: 'reservado'
-                    });
-                    
-                    await axiosInstance.post("/campaign-spaces/", {
-                        campaign: campaignId,
-                        space_rental: rentalData.id,
-                        notes: "Auto-generado desde campaña"
-                    });
-                    notification.success({ message: "Campaña y Reserva creadas correctamente" });
-                } else {
-                    notification.success({ message: "Campaña creada correctamente" });
-                }
-                
-                invalidate({ resource: "campaigns", invalidates: ["list"] });
-                invalidate({ resource: "space-rentals", invalidates: ["list"] });
-                modalProps.onCancel?.(null as any);
-                formProps.form?.resetFields();
-            } catch (error) {
-                notification.error({ message: "Error al crear la campaña o reserva" });
-                console.error(error);
-            } finally {
-                setIsSubmitting(false);
+    const handleAprobar = async (campaignId: number) => {
+        setApprovingId(campaignId);
+        try {
+            const { data } = await axiosInstance.post(`${API_URL}/campaigns/${campaignId}/aprobar/`);
+            notification.success({
+                message: "Campaña aprobada",
+                description: `OT-${String(data.work_order_id).padStart(4, "0")} creada correctamente.`,
+                duration: 6,
+            });
+            invalidate({ resource: "campaigns", invalidates: ["list"] });
+        } catch (err: any) {
+            const msg = err?.response?.data?.detail || "Error al aprobar la campaña";
+            notification.error({ message: msg });
+        } finally {
+            setApprovingId(null);
+        }
+    };
+
+    const handleModalOk = async () => {
+        if (modalAction === "edit") {
+            formProps.form?.submit();
+            return;
+        }
+        let values: any;
+        try {
+            values = await formProps.form?.validateFields();
+        } catch {
+            return; // Ant Design ya muestra los mensajes de validación inline
+        }
+        const { space_assignments, ...campaignValues } = values;
+        setIsSubmitting(true);
+        try {
+            const { data: campaignData } = await axiosInstance.post(`${API_URL}/campaigns/`, campaignValues);
+            const campaignId = campaignData.id;
+
+            const assignments: any[] = (space_assignments || []).filter((a: any) => a?.face_id);
+            for (const assignment of assignments) {
+                const { data: rentalData } = await axiosInstance.post(`${API_URL}/space-rentals/`, {
+                    face: assignment.face_id,
+                    client: campaignValues.client,
+                    campaign: campaignId,
+                    start_date: campaignValues.start_date,
+                    end_date: campaignValues.end_date,
+                    price: assignment.price || 0,
+                    status: 'reservado'
+                });
+                await axiosInstance.post(`${API_URL}/campaign-spaces/`, {
+                    campaign: campaignId,
+                    space_rental: rentalData.id,
+                });
             }
-        } else {
-            // En modo edición usamos el onFinish default de refine
-            await formProps.onFinish?.(campaignValues);
+
+            notification.success({
+                message: assignments.length > 0
+                    ? `Campaña creada con ${assignments.length} espacio${assignments.length > 1 ? 's' : ''}`
+                    : "Campaña creada correctamente"
+            });
+            invalidate({ resource: "campaigns", invalidates: ["list"] });
+            invalidate({ resource: "space-rentals", invalidates: ["list"] });
+            modalProps.onCancel?.(null as any);
+            formProps.form?.resetFields();
+        } catch (error) {
+            notification.error({ message: "Error al crear la campaña" });
+            console.error(error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -201,15 +232,40 @@ function CampaignsTab() {
                     <Table.Column title="Fin" dataIndex="end_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
                     <Table.Column title="Espacios" dataIndex="spaces_count" width={90} render={(v: number) => <Tag color="cyan">{v ?? 0}</Tag>} />
                     <Table.Column title="Presupuesto" dataIndex="budget_total" width={130} render={(v: number) => v ? `$${Number(v).toLocaleString("es-AR")}` : "—"} />
-                    <Table.Column title="" key="actions" width={70} render={(_: any, record: any) => (
-                        <Button type="dashed" size="small" icon={<EditOutlined />}
-                            onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }} />
+                    <Table.Column title="" key="actions" width={130} render={(_: any, record: any) => (
+                        <Space size={6}>
+                            {(record.status === 'presupuesto' || record.status === 'borrador') && !record.work_order_id && (
+                                <Popconfirm
+                                    title="¿Aprobar campaña?"
+                                    description="Se generará una Orden de Trabajo vinculada."
+                                    okText="Aprobar"
+                                    cancelText="Cancelar"
+                                    onConfirm={() => handleAprobar(record.id)}
+                                >
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        loading={approvingId === record.id}
+                                        style={{ background: "#7c3aed", border: "none", borderRadius: 6, fontSize: 11 }}
+                                    >
+                                        Aprobar → OT
+                                    </Button>
+                                </Popconfirm>
+                            )}
+                            {record.work_order_id && (
+                                <Tag color="geekblue" style={{ margin: 0, fontSize: 11 }}>
+                                    OT-{String(record.work_order_id).padStart(4, "0")}
+                                </Tag>
+                            )}
+                            <Button type="dashed" size="small" icon={<EditOutlined />}
+                                onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }} />
+                        </Space>
                     )} />
                 </Table>
             )}
 
-            <Modal {...modalProps} title={<b>{modalAction === "create" ? "Nueva Campaña" : "Editar Campaña"}</b>} width={650} centered okButtonProps={{ loading: isSubmitting }}>
-                <Form {...formProps} layout="vertical" onFinish={handleFormFinish}>
+            <Modal {...modalProps} onOk={handleModalOk} title={<b>{modalAction === "create" ? "Nueva Campaña" : "Editar Campaña"}</b>} width={650} centered okButtonProps={{ loading: isSubmitting }}>
+                <Form {...formProps} layout="vertical">
                     <Form.Item label="Nombre de la Campaña" name="name" rules={[{ required: true, message: "Requerido" }]}>
                         <Input size="large" placeholder="Ej: Campaña Verano 2025" />
                     </Form.Item>
@@ -220,11 +276,13 @@ function CampaignsTab() {
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item label="Estado" name="status" initialValue="borrador">
+                            <Form.Item label="Estado" name="status" initialValue="presupuesto">
                                 <Select size="large" options={[
-                                    { label: "Borrador", value: "borrador" },
+                                    { label: "Presupuesto", value: "presupuesto" },
+                                    { label: "Aprobado", value: "aprobado" },
                                     { label: "Activa", value: "activa" },
                                     { label: "Finalizada", value: "finalizada" },
+                                    { label: "Cancelada", value: "cancelada" },
                                 ]} />
                             </Form.Item>
                         </Col>
@@ -241,27 +299,68 @@ function CampaignsTab() {
                             </Form.Item>
                         </Col>
                     </Row>
-                    <Form.Item label="Presupuesto Total" name="budget_total" initialValue={0}>
+                    <Form.Item
+                        label="Presupuesto Total"
+                        name="budget_total"
+                        initialValue={0}
+                        help="Valor comercial total acordado con el cliente (puede incluir producción, diseño, etc.)"
+                    >
                         <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} />
                     </Form.Item>
 
                     {modalAction === "create" && (
                         <>
                             <Divider style={{ margin: "24px 0" }}>
-                                <span style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>ASIGNACIÓN DE ESTRUCTURA (OPCIONAL)</span>
+                                <span style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>ESPACIOS / ESTRUCTURAS (OPCIONAL)</span>
                             </Divider>
-                            <Row gutter={16} style={{ background: "#f8fafc", padding: "16px 16px 0", borderRadius: 12, marginBottom: 16 }}>
-                                <Col span={14}>
-                                    <Form.Item label="Vincular a Cartel/Cara" name="link_face_id" help="Se creará una Reserva comercial automáticamente">
-                                        <Select size="large" options={faceOptions} placeholder="Seleccionar espacio..." showSearch optionFilterProp="label" allowClear />
-                                    </Form.Item>
-                                </Col>
-                                <Col span={10}>
-                                    <Form.Item label="Precio de Alquiler" name="rental_price" help="Costo del espacio">
-                                        <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
+                            <Form.List name="space_assignments">
+                                {(fields, { add, remove }) => (
+                                    <div style={{ background: "#f8fafc", padding: "16px", borderRadius: 12, marginBottom: 16 }}>
+                                        {fields.map(({ key, name }) => (
+                                            <Row key={key} gutter={12} align="middle" style={{ marginBottom: 8 }}>
+                                                <Col span={13}>
+                                                    <Form.Item name={[name, "face_id"]} style={{ marginBottom: 0 }}>
+                                                        <Select
+                                                            size="large"
+                                                            options={faceOptions}
+                                                            placeholder="Seleccionar cara/espacio..."
+                                                            showSearch
+                                                            optionFilterProp="label"
+                                                            allowClear
+                                                        />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={9}>
+                                                    <Form.Item name={[name, "price"]} style={{ marginBottom: 0 }}>
+                                                        <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} placeholder="Precio alquiler" />
+                                                    </Form.Item>
+                                                </Col>
+                                                <Col span={2} style={{ textAlign: "center" }}>
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        onClick={() => remove(name)}
+                                                    />
+                                                </Col>
+                                            </Row>
+                                        ))}
+                                        <Button
+                                            type="dashed"
+                                            onClick={() => add()}
+                                            icon={<PlusOutlined />}
+                                            style={{ width: "100%", marginTop: fields.length > 0 ? 8 : 0 }}
+                                        >
+                                            Agregar Espacio
+                                        </Button>
+                                        {fields.length > 0 && (
+                                            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                                                Se creará una Reserva por cada espacio agregado.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </Form.List>
                         </>
                     )}
 

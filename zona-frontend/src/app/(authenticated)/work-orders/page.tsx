@@ -6,7 +6,7 @@ import { useList } from "@refinedev/core";
 import {
   Typography, Table, Tag, Button, Progress, Tooltip, Space, Spin, Empty, Input, Select,
 } from "antd";
-import { PlusOutlined, FireOutlined, ClockCircleOutlined, EyeOutlined, SearchOutlined } from "@ant-design/icons";
+import { PlusOutlined, FireOutlined, ClockCircleOutlined, EyeOutlined, SearchOutlined, FlagOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { OT_STATUS } from "@/constants/statuses";
 import { calcProgress } from "@/utils/time";
@@ -56,7 +56,14 @@ export default function WorkOrdersPage() {
       dataIndex: "title",
       render: (title: string, record: any) => (
         <div>
-          <Text strong>{title}</Text>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Text strong>{title}</Text>
+            {(record.campaign || record.work_type === "campana") && (
+              <Tag color="orange" icon={<FlagOutlined />} style={{ fontSize: 10, paddingInline: 4, borderRadius: 4 }}>
+                CAMPAÑA
+              </Tag>
+            )}
+          </div>
           {record.client_name && (
             <Text type="secondary" style={{ display: "block", fontSize: 12 }}>{record.client_name}</Text>
           )}

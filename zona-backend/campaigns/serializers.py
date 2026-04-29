@@ -20,6 +20,7 @@ class CampaignSerializer(serializers.ModelSerializer):
     client_name = serializers.ReadOnlyField(source='client.name')
     spaces = CampaignSpaceSerializer(many=True, read_only=True)
     spaces_count = serializers.SerializerMethodField()
+    work_order_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Campaign
@@ -28,3 +29,7 @@ class CampaignSerializer(serializers.ModelSerializer):
 
     def get_spaces_count(self, obj):
         return obj.spaces.count()
+
+    def get_work_order_id(self, obj):
+        wo = obj.work_orders.first()
+        return wo.id if wo else None

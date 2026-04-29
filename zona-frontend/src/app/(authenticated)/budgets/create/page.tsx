@@ -83,6 +83,7 @@ export default function BudgetCreatePage() {
         notes: values.notes || "",
         status: "borrador",
         expiry_date: values.expiry_date ? dayjs(values.expiry_date).format("YYYY-MM-DD") : null,
+        government_order: values.government_order || "",
       });
       await Promise.all(
         items.map((item) =>
@@ -193,6 +194,17 @@ export default function BudgetCreatePage() {
                 </Form.Item>
 
                 <Form.Item
+                  label={<Text strong style={{ fontSize: 13 }}>Nro de Orden (Gubernamental / O.C.)</Text>}
+                  name="government_order"
+                >
+                  <Input
+                    placeholder="Opcional. Ej: OC-2026-9812"
+                    style={{ borderRadius: 8 }}
+                    size="large"
+                  />
+                </Form.Item>
+
+                <Form.Item
                   label={<Text strong style={{ fontSize: 13 }}>Notas internas</Text>}
                   name="notes"
                 >
@@ -247,7 +259,7 @@ export default function BudgetCreatePage() {
 
                 {/* Add item form */}
                 <div style={{ padding: "20px 28px", background: "#fafbfc", borderBottom: "1px solid #f0f0f0" }}>
-                  <Form form={itemForm} layout="vertical">
+                  <Form form={itemForm} layout="vertical" component={false}>
                     <Row gutter={12} align="bottom">
                       <Col xs={24} sm={8}>
                         <Form.Item label={<Text style={{ fontSize: 12 }}>Descripción</Text>} name="description" rules={[{ required: true, message: "Requerido" }]} style={{ marginBottom: 0 }}>

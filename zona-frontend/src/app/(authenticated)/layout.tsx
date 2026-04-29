@@ -8,11 +8,27 @@ import { OTNotificationManager } from "@/components/notifications/OTNotification
 import { PendingReservationsBanner } from "@/components/notifications/PendingReservationsBanner";
 import { NotificationToast } from "@/components/notifications/NotificationToast";
 
+import { usePathname } from "next/navigation";
+
 export default function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isPrintView = pathname?.endsWith("/remito");
+
+  if (isPrintView) {
+    return (
+      <Authenticated 
+        key="print-layout" 
+        loading={<Spin size="large" />}
+      >
+        {children}
+      </Authenticated>
+    );
+  }
+
   return (
     <Authenticated 
         key="authenticated-layout" 

@@ -2,17 +2,17 @@
 
 import { AdminGuard } from "@/components/AdminGuard";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useList } from "@refinedev/core";
+import { useList, useInvalidate } from "@refinedev/core";
 import {
   Typography, Button, Card, Tag, Table, Space, Tooltip,
-  notification, Popconfirm, Input, Segmented, Badge,
+  notification, Popconfirm, Input, Badge, Tabs,
 } from "antd";
 import {
-  PlusOutlined, EyeOutlined, CheckCircleOutlined,
+  PlusOutlined, EyeOutlined,
   FileTextOutlined, LinkOutlined, SearchOutlined,
-  ClearOutlined, FilterOutlined,
+  ClearOutlined, FundOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
@@ -27,6 +27,7 @@ const STATUS_CONFIG = BUDGET_STATUS;
 
 export default function BudgetsPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState("1");
   const [creatingOT, setCreatingOT] = useState<number | null>(null);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -218,39 +219,11 @@ export default function BudgetsPage() {
     }
   };
 
-  return (
-    <AdminGuard>
-    <div style={{ padding: "32px", background: "#f1f5f9", minHeight: "100vh" }}>
-      {/* Header Section */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
-        <div>
-          <Title level={2} style={{ margin: 0, color: "#0f172a", fontWeight: 800 }}>Presupuestos</Title>
-          <Text style={{ color: "#64748b", fontSize: 15 }}>Gestión centralizada de cotizaciones y emisión de órdenes.</Text>
-        </div>
-        <Button
-          type="primary"
-          size="large"
-          icon={<PlusOutlined />}
-          onClick={() => router.push("/budgets/create")}
-          style={{ 
-            borderRadius: 12, 
-            height: 48, 
-            padding: "0 24px",
-            background: "#0f172a", 
-            boxShadow: "0 4px 12px rgba(15,23,42,0.15)",
-            fontWeight: 600
-          }}
-        >
-          Nuevo Presupuesto
-        </Button>
-      </div>
-
+  const productionTabContent = (
+    <>
       {/* Stats Quick Filters */}
-      <div style={{ 
-        display: "flex", gap: 12, marginBottom: 24, overflowX: "auto", paddingBottom: 8,
-        scrollbarWidth: "none"
-      }}>
-        <div 
+      <div style={{ display: "flex", gap: 12, marginBottom: 24, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
+        <div
           onClick={() => setStatusFilter("all")}
           style={{
             cursor: "pointer", padding: "10px 20px", borderRadius: 12,
@@ -268,7 +241,7 @@ export default function BudgetsPage() {
           const count = allBudgets.filter((b) => b.status === key).length;
           const isActive = statusFilter === key;
           return (
-            <div 
+            <div
               key={key}
               onClick={() => setStatusFilter(key)}
               style={{
@@ -287,87 +260,207 @@ export default function BudgetsPage() {
         })}
       </div>
 
-      <Card
-        bordered={false}
-        style={{ borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.04)", overflow: "hidden" }}
-        styles={{ body: { padding: 0 } }}
-      >
-        {/* Filters Toolbar */}
+      <Card variant="borderless" style={{ borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.04)", overflow: "hidden" }} styles={{ body: { padding: 0 } }}>
         <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1 }}>
-            <Input
-              placeholder="Buscar por PRE-# o Cliente..."
-              prefix={<SearchOutlined style={{ color: "#94a3b8", marginRight: 8 }} />}
-              size="large"
-              allowClear
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ maxWidth: 400, borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}
-            />
-          </div>
+          <Input
+            placeholder="Buscar por PRE-# o Cliente..."
+            prefix={<SearchOutlined style={{ color: "#94a3b8", marginRight: 8 }} />}
+            size="large" allowClear value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ maxWidth: 400, borderRadius: 10, background: "#f8fafc", border: "1px solid #e2e8f0" }}
+          />
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Text style={{ color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>
-              Mostrando {filteredBudgets.length} resultados
-            </Text>
+            <Text style={{ color: "#94a3b8", fontSize: 13, fontWeight: 500 }}>Mostrando {filteredBudgets.length} resultados</Text>
             {(searchText || statusFilter !== "all") && (
-              <Button 
-                type="text" 
-                icon={<ClearOutlined />} 
-                onClick={() => { setSearchText(""); setStatusFilter("all"); }}
-                style={{ color: "#ef4444", fontWeight: 500 }}
-              >
-                Limpiar
-              </Button>
+              <Button type="text" icon={<ClearOutlined />} onClick={() => { setSearchText(""); setStatusFilter("all"); }} style={{ color: "#ef4444", fontWeight: 500 }}>Limpiar</Button>
             )}
           </div>
         </div>
-
         <style>{`
-          .budget-table .ant-table-thead > tr > th {
-            background: #fff !important;
-            color: #64748b !important;
-            font-weight: 600 !important;
-            font-size: 13px !important;
-            border-bottom: 1px solid #f1f5f9 !important;
-            padding: 16px 24px !important;
-          }
-          .budget-table .ant-table-tbody > tr > td {
-            padding: 18px 24px !important;
-            border-bottom: 1px solid #f1f5f9 !important;
-          }
-          .budget-table .ant-table-tbody > tr:hover > td {
-            background: #f8fafc !important;
-          }
+          .budget-table .ant-table-thead > tr > th { background: #fff !important; color: #64748b !important; font-weight: 600 !important; font-size: 13px !important; border-bottom: 1px solid #f1f5f9 !important; padding: 16px 24px !important; }
+          .budget-table .ant-table-tbody > tr > td { padding: 18px 24px !important; border-bottom: 1px solid #f1f5f9 !important; }
+          .budget-table .ant-table-tbody > tr:hover > td { background: #f8fafc !important; }
         `}</style>
-        
         <Table
-          className="budget-table"
-          columns={columns}
-          dataSource={filteredBudgets}
-          rowKey="id"
+          className="budget-table" columns={columns} dataSource={filteredBudgets} rowKey="id"
           loading={query.isLoading}
-          pagination={{ 
-            pageSize: 15,
-            showSizeChanger: false,
-            position: ["bottomRight"],
-            style: { margin: "24px" }
-          }}
-          onRow={(record) => ({
-            onClick: () => router.push(`/budgets/${record.id}`),
-            style: { cursor: "pointer" }
-          })}
+          pagination={{ pageSize: 15, showSizeChanger: false, position: ["bottomRight"], style: { margin: "24px" } }}
+          onRow={(record) => ({ onClick: () => router.push(`/budgets/${record.id}`), style: { cursor: "pointer" } })}
         />
       </Card>
+    </>
+  );
 
-      <BillingModal
-        open={billingModal.open}
-        onClose={() => setBillingModal({ ...billingModal, open: false })}
-        onSuccess={() => query.refetch()}
-        budgetId={billingModal.budgetId || 0}
-        clientName={billingModal.clientName}
-        totalAmount={billingModal.totalAmount}
-      />
-    </div>
+  return (
+    <AdminGuard>
+    <div style={{ padding: "24px 32px", background: "#f8fafc", minHeight: "100vh" }}>
+      {/* ─── BANNER PREMIUM ─────────────────────────────────────────── */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)",
+        borderRadius: "20px",
+        padding: "28px 32px",
+        marginBottom: "32px",
+        boxShadow: "0 10px 30px rgba(15,23,42,0.2)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 16
+      }}>
+        <div>
+          <Title level={2} style={{ margin: 0, color: "#fff", fontWeight: 800, letterSpacing: "-0.03em" }}>
+            Presupuestos
+          </Title>
+          <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 4, display: "block" }}>
+            Gestión centralizada de cotizaciones comerciales y emisión de órdenes operativas.
+          </Text>
+        </div>
+        
+        {activeTab === "1" && (
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => router.push("/budgets/create")}
+            style={{ 
+              borderRadius: "12px", 
+              height: "46px", 
+              padding: "0 24px", 
+              background: "#fff", 
+              color: "#0f172a",
+              fontWeight: 700,
+              border: "none",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+            }}
+          >
+            Nuevo Presupuesto
+          </Button>
+        )}
+      </div>
+
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          size="large"
+          tabBarStyle={{ background: "#fff", borderRadius: "16px 16px 0 0", padding: "0 24px", marginBottom: 0 }}
+          items={[
+            {
+              key: "1",
+              label: <span style={{ fontWeight: 600 }}>📋 Producción</span>,
+              children: productionTabContent,
+            },
+            {
+              key: "2",
+              label: <span style={{ fontWeight: 600 }}><FundOutlined /> Vía Pública</span>,
+              children: <CampaignVPTab />,
+            },
+          ]}
+        />
+
+        <BillingModal
+          open={billingModal.open}
+          onClose={() => setBillingModal({ ...billingModal, open: false })}
+          onSuccess={() => query.refetch()}
+          budgetId={billingModal.budgetId || 0}
+          clientName={billingModal.clientName}
+          totalAmount={billingModal.totalAmount}
+        />
+      </div>
     </AdminGuard>
+  );
+}
+
+// ── Tab Vía Pública: campañas en presupuesto/aprobado ──────────
+
+function CampaignVPTab() {
+  const router = useRouter();
+  const invalidate = useInvalidate();
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+
+  const { result, query } = useList({
+    resource: "campaigns",
+    pagination: { pageSize: 200 },
+    sorters: [{ field: "id", order: "desc" }],
+  });
+
+  const allCampaigns: any[] = result?.data || [];
+  const campaigns = allCampaigns.filter((c: any) =>
+    ["presupuesto", "borrador", "aprobado"].includes(c.status)
+  );
+
+  const handleAprobar = async (campaignId: number) => {
+    setApprovingId(campaignId);
+    try {
+      const { data } = await axiosInstance.post(`${API}/campaigns/${campaignId}/aprobar/`);
+      notification.success({
+        message: "Campaña aprobada",
+        description: `OT-${String(data.work_order_id).padStart(4, "0")} creada correctamente.`,
+        duration: 6,
+      });
+      invalidate({ resource: "campaigns", invalidates: ["list"] });
+    } catch (err: any) {
+      notification.error({ message: err?.response?.data?.detail || "Error al aprobar la campaña" });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const CAMP_COLORS: Record<string, string> = { borrador: "default", presupuesto: "orange", aprobado: "geekblue" };
+  const CAMP_LABELS: Record<string, string> = { borrador: "Borrador", presupuesto: "Presupuesto", aprobado: "Aprobado" };
+
+  return (
+    <Card variant="borderless" style={{ borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.04)", overflow: "hidden" }} styles={{ body: { padding: 0 } }}>
+      <Table
+        className="budget-table"
+        dataSource={campaigns}
+        rowKey="id"
+        loading={query.isLoading}
+        pagination={{ pageSize: 15, showSizeChanger: false, position: ["bottomRight"], style: { margin: "24px" } }}
+        locale={{ emptyText: "Sin campañas en presupuesto" }}
+      >
+        <Table.Column title="Campaña" dataIndex="name" render={(v: string) => <Text strong>{v}</Text>} />
+        <Table.Column title="Cliente" dataIndex="client_name" render={(v: string) => v || <Text type="secondary">—</Text>} />
+        <Table.Column title="Estado" dataIndex="status" width={120} render={(v: string) => (
+          <Tag color={CAMP_COLORS[v] || "default"}>{CAMP_LABELS[v] || v}</Tag>
+        )} />
+        <Table.Column title="Presupuesto" dataIndex="budget_total" width={140} render={(v: number) => (
+          <Text strong style={{ color: "#52c41a" }}>${Number(v || 0).toLocaleString("es-AR")}</Text>
+        )} />
+        <Table.Column title="Espacios" dataIndex="spaces_count" width={80} render={(v: number) => (
+          <Text type="secondary">{v ?? 0}</Text>
+        )} />
+        <Table.Column title="Inicio" dataIndex="start_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
+        <Table.Column title="Fin" dataIndex="end_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
+        <Table.Column title="OT" dataIndex="work_order_id" width={100} render={(woId: number | null) =>
+          woId ? (
+            <Button type="link" size="small" icon={<LinkOutlined />}
+              onClick={() => router.push(`/work-orders/${woId}`)} style={{ padding: 0 }}>
+              OT-{String(woId).padStart(4, "0")}
+            </Button>
+          ) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+        } />
+        <Table.Column title="Acciones" width={150} render={(_: any, record: any) => (
+          <Space>
+            {(record.status === "presupuesto" || record.status === "borrador") && !record.work_order_id && (
+              <Popconfirm
+                title="¿Aprobar campaña?"
+                description="Se generará una Orden de Trabajo vinculada."
+                okText="Aprobar" cancelText="Cancelar"
+                onConfirm={() => handleAprobar(record.id)}
+              >
+                <Button size="small" type="primary" loading={approvingId === record.id}
+                  style={{ background: "#7c3aed", border: "none", borderRadius: 6, fontSize: 11 }}>
+                  Aprobar → OT
+                </Button>
+              </Popconfirm>
+            )}
+            <Tooltip title="Ver en Campañas">
+              <Button size="small" type="dashed" icon={<EyeOutlined />}
+                onClick={() => router.push("/campaigns")} />
+            </Tooltip>
+          </Space>
+        )} />
+      </Table>
+    </Card>
   );
 }

@@ -9,6 +9,17 @@ class Budget(models.Model):
         FACTURADO = 'facturado', 'Facturado'
         VENCIDO = 'vencido', 'Vencido'
 
+    class BillingType(models.TextChoices):
+        FACTURA = 'factura', 'Factura'
+        REMITO = 'remito', 'Remito'
+
+    billing_type = models.CharField(
+        max_length=20,
+        choices=BillingType.choices,
+        default=BillingType.FACTURA,
+        verbose_name="Tipo de Facturación"
+    )
+
     client = models.ForeignKey(
         'clients.Client',
         on_delete=models.CASCADE,
@@ -29,6 +40,7 @@ class Budget(models.Model):
     issue_date = models.DateField(auto_now_add=True, verbose_name="Fecha de emisión")
     expiry_date = models.DateField(null=True, blank=True, verbose_name="Fecha de vencimiento")
     notes = models.TextField(blank=True)
+    government_order = models.CharField(max_length=255, blank=True, null=True, verbose_name="Orden de Compra / Gubernamental")
     iva_pct = models.DecimalField(
         max_digits=5, decimal_places=2, default=0,
         verbose_name="IVA %"

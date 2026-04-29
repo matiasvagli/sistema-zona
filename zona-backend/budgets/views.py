@@ -54,8 +54,10 @@ class BudgetViewSet(viewsets.ModelViewSet):
         budget = self.get_object()
         if budget.status == Budget.Status.FACTURADO:
             return Response({'detail': 'Este presupuesto ya fue facturado.'}, status=status.HTTP_400_BAD_REQUEST)
+        billing_type = request.data.get('billing_type', Budget.BillingType.FACTURA)
         budget.status = Budget.Status.FACTURADO
-        budget.save(update_fields=['status'])
+        budget.billing_type = billing_type
+        budget.save(update_fields=['status', 'billing_type'])
         wo = getattr(budget, 'work_order_assigned', None)
         if wo:
             from work_orders.models import WorkOrder

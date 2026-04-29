@@ -7,7 +7,7 @@ import {
 } from "antd";
 import {
   SearchOutlined, EyeOutlined, CalendarOutlined, CheckCircleOutlined,
-  UserOutlined, RocketOutlined, ClearOutlined, FileProtectOutlined, DollarOutlined,
+  UserOutlined, RocketOutlined, ClearOutlined, FileProtectOutlined, DollarOutlined, FlagOutlined,
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
@@ -81,7 +81,14 @@ export function FinishedWorksTab() {
       dataIndex: "title",
       render: (title: string, record: any) => (
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <Text strong style={{ fontSize: 14, color: "#1e293b" }}>{title}</Text>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Text strong style={{ fontSize: 14, color: "#1e293b" }}>{title}</Text>
+            {record.campaign && (
+              <Tag color="orange" icon={<FlagOutlined />} style={{ fontSize: 10, paddingInline: 6, borderRadius: 4, height: 20 }}>
+                CAMPAÑA
+              </Tag>
+            )}
+          </div>
           <Text type="secondary" style={{ fontSize: 12, marginTop: 2 }}>
             <RocketOutlined style={{ marginRight: 4 }} />
             {record.tasks?.length || 0} sectores completados

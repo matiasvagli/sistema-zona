@@ -27,6 +27,8 @@ import {
   WarningOutlined,
   ShoppingOutlined,
   CheckCircleOutlined,
+  FlagOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import dayjs from "dayjs";
@@ -122,6 +124,24 @@ export default function Dashboard() {
     }
   });
 
+  const { result: campaignsResult } = useList({
+    resource: "campaigns",
+    pagination: { pageSize: 500 },
+    queryOptions: {
+      enabled: canViewBudgets && !!user,
+      refetchInterval: 15000,
+    }
+  });
+
+  const { result: locationsResult } = useList({
+    resource: "locations",
+    pagination: { pageSize: 500 },
+    queryOptions: {
+      enabled: canViewBudgets && !!user,
+      refetchInterval: 15000,
+    }
+  });
+
   const { result: purchaseReqsResult } = useList({
     resource: "purchase-requests",
     filters: [{ field: "status", operator: "eq", value: "pendiente" }],
@@ -170,6 +190,24 @@ export default function Dashboard() {
   const clients: any[] = (clientsResult?.data || []) as any[];
   const products: any[] = (productsResult?.data || []) as any[];
   const purchaseReqs: any[] = (purchaseReqsResult?.data || []) as any[];
+  const campaigns: any[] = (campaignsResult?.data || []) as any[];
+  const locations: any[] = (locationsResult?.data || []) as any[];
+
+  const expiringCampaigns = useMemo(() => {
+    return campaigns.filter(c => {
+      if (c.status !== "activa" || !c.end_date) return false;
+      const diff = dayjs(c.end_date).diff(dayjs(), "day");
+      return diff <= 30;
+    });
+  }, [campaigns]);
+
+  const expiringLocations = useMemo(() => {
+    return locations.filter(loc => {
+      if (!loc.contract_end_date) return false;
+      const diff = dayjs(loc.contract_end_date).diff(dayjs(), "day");
+      return diff <= 45;
+    });
+  }, [locations]);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -187,24 +225,6 @@ export default function Dashboard() {
 
   const statCards = [
     ...(canViewBudgets ? [{
-      title: "Clientes",
-      value: clients.length,
-      icon: <UserOutlined />,
-      color: "#1677ff",
-      bg: "#e6f4ff",
-      path: "/clients",
-      sub: `${clients.filter(c => c.is_active !== false).length} activos`,
-    }] : []),
-    {
-      title: "OTs Activas",
-      value: activeOTs.length,
-      icon: <RocketOutlined />,
-      color: "#7c3aed",
-      bg: "#f3e8ff",
-      path: "/work-orders",
-      sub: `${workOrders.filter(o => o.status === "en_proceso").length} en proceso`,
-    },
-    ...(canViewBudgets ? [{
       title: "Presupuestos",
       value: budgets.length,
       icon: <FileTextOutlined />,
@@ -214,13 +234,22 @@ export default function Dashboard() {
       sub: `${budgets.filter(b => b.status === "aprobado").length} aprobados`,
     }] : []),
     ...(canViewBudgets ? [{
-      title: "Productos",
-      value: products.length,
-      icon: <ShoppingCartOutlined />,
-      color: "#059669",
-      bg: "#ecfdf5",
-      path: "/products",
-      sub: "en inventario",
+      title: "Campañas a vencer",
+      value: expiringCampaigns.length,
+      icon: <FlagOutlined />,
+      color: "#fa8c16",
+      bg: "#fff7e6",
+      path: "/campaigns",
+      sub: "En menos de 30 días",
+    }] : []),
+    ...(canViewBudgets ? [{
+      title: "Terrenos a vencer",
+      value: expiringLocations.length,
+      icon: <EnvironmentOutlined />,
+      color: "#ff4d4f",
+      bg: "#fff1f0",
+      path: "/spaces",
+      sub: "En menos de 45 días",
     }] : []),
   ];
 
@@ -307,7 +336,7 @@ export default function Dashboard() {
         {/* ─── STAT STRIP ─── */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: `repeat(${statCards.length}, 1fr)`,
           borderTop: "1px solid rgba(255,255,255,0.08)",
         }}>
           {statCards.map((s, i) => (
@@ -317,7 +346,7 @@ export default function Dashboard() {
               style={{
                 padding: "16px 24px",
                 cursor: "pointer",
-                borderRight: i < 3 ? "1px solid rgba(255,255,255,0.08)" : "none",
+                borderRight: i < statCards.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none",
                 display: "flex",
                 alignItems: "center",
                 gap: 14,
@@ -436,6 +465,11 @@ export default function Dashboard() {
                                   <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", background: "#f8fafc", padding: "2px 6px", borderRadius: 4 }}>#{ot.id}</span>
                                   <Text strong style={{ fontSize: 14, color: "#1e293b" }}>{ot.title}</Text>
                                   {isInmediata && <Tag color="volcano" style={{ fontSize: 9, margin: 0, borderRadius: 4, height: 18, lineHeight: '16px' }}>INMEDIATA</Tag>}
+                                  {(ot.campaign || ot.work_type === "campana") && (
+                                    <Tag color="orange" icon={<FlagOutlined />} style={{ fontSize: 10, margin: 0, borderRadius: 4, height: 18, lineHeight: '16px', display: 'flex', alignItems: 'center' }}>
+                                      CAMPAÑA
+                                    </Tag>
+                                  )}
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

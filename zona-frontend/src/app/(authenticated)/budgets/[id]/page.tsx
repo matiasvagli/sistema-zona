@@ -32,6 +32,7 @@ export default function BudgetDetailPage() {
   const [creatingOT, setCreatingOT] = useState(false);
 
   const [ivaPct, setIvaPct] = useState<number>(0);
+  const [governmentOrder, setGovernmentOrder] = useState<string>('');
 
   const emptyItemForm = { description: '', qty: 1, unit_price: 0, discount_pct: 0 };
   const [itemModalOpen, setItemModalOpen] = useState(false);
@@ -54,7 +55,10 @@ export default function BudgetDetailPage() {
   useEffect(() => { fetchBudget(); }, [fetchBudget]);
 
   useEffect(() => {
-    if (budget) setIvaPct(Number(budget.iva_pct ?? 0));
+    if (budget) {
+      setIvaPct(Number(budget.iva_pct ?? 0));
+      setGovernmentOrder(budget.government_order ?? '');
+    }
   }, [budget]);
 
   const handleApprove = async () => {
@@ -91,6 +95,16 @@ export default function BudgetDetailPage() {
       fetchBudget();
     } catch {
       notification.error({ message: "Error al guardar IVA" });
+    }
+  };
+
+  const saveGovernmentOrder = async (val: string) => {
+    try {
+      await axiosInstance.patch(`${API}/budgets/${id}/`, { government_order: val });
+      notification.success({ message: "Nro de orden guardado" });
+      fetchBudget();
+    } catch {
+      notification.error({ message: "Error al guardar Nro de orden" });
     }
   };
 
@@ -156,7 +170,7 @@ export default function BudgetDetailPage() {
   const ivaAmount     = Number(budget.iva_amount     || 0);
   const totalWithIva  = Number(budget.total_with_iva || 0);
 
-  const isBorrador = budget?.status === "borrador";
+  const isBorrador = budget?.status !== "facturado";
 
   const itemColumns = [
     {
@@ -207,31 +221,62 @@ export default function BudgetDetailPage() {
 
   return (
     <AdminGuard>
-    <div style={{ padding: "24px 32px", background: "#f8fafc", minHeight: "100%" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32, flexWrap: "wrap" }}>
-        <Button
-          icon={<ArrowLeftOutlined />}
-          onClick={() => router.push("/budgets")}
-          type="text"
-          size="large"
-          style={{ background: "#fff", border: "1px solid #e2e8f0" }}
-        />
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-            <Title level={3} style={{ margin: 0, color: "#0f172a" }}>
-              PRE-{String(budget.id).padStart(4, "0")}
-            </Title>
-            <Tag color={st.color as any} style={{ fontSize: 13 }}>{st.label}</Tag>
+    <div style={{ padding: "24px 32px", background: "#f1f5f9", minHeight: "100%" }}>
+      {/* ─── HEADER PREMIUM ─────────────────────────────────────────── */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+        borderRadius: "20px",
+        padding: "24px 32px",
+        marginBottom: "32px",
+        boxShadow: "0 10px 25px -5px rgba(15,23,42,0.3)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 20
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Button
+            icon={<ArrowLeftOutlined style={{ color: "#fff" }} />}
+            onClick={() => router.push("/budgets")}
+            type="text"
+            size="large"
+            style={{ 
+              background: "rgba(255,255,255,0.08)", 
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "12px"
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
+          />
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+              <Title level={3} style={{ margin: 0, color: "#ffffff", fontWeight: 800, letterSpacing: "-0.03em" }}>
+                PRE-{String(budget.id).padStart(4, "0")}
+              </Title>
+              <Tag color={st.color as any} style={{ fontSize: 12, fontWeight: 600, borderRadius: 6, border: "none", padding: "2px 10px" }}>
+                {st.label.toUpperCase()}
+              </Tag>
+            </div>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: 500 }}>{budget.client_name}</Text>
           </div>
-          <Text type="secondary">{budget.client_name}</Text>
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {budget.status === "borrador" && (
             <Popconfirm title="¿Aprobar este presupuesto?" onConfirm={handleApprove} okText="Aprobar">
-              <Button icon={<CheckCircleOutlined />} style={{ color: "#52c41a", borderColor: "#52c41a" }}>
-                Aprobar
+              <Button 
+                icon={<CheckCircleOutlined />} 
+                style={{ 
+                  color: "#10b981", 
+                  borderColor: "#10b981", 
+                  background: "rgba(16, 185, 129, 0.1)",
+                  fontWeight: 600,
+                  borderRadius: "10px",
+                  height: "40px"
+                }}
+              >
+                Aprobar Presupuesto
               </Button>
             </Popconfirm>
           )}
@@ -241,15 +286,27 @@ export default function BudgetDetailPage() {
               icon={<FileTextOutlined />}
               loading={creatingOT}
               onClick={handleCreateOT}
-              style={{ background: "#0f172a", borderColor: "#0f172a" }}
+              style={{ 
+                background: "#1677ff", 
+                borderColor: "#1677ff",
+                fontWeight: 600,
+                borderRadius: "10px",
+                height: "40px",
+                boxShadow: "0 4px 12px rgba(22,119,255,0.3)"
+              }}
             >
-              Crear OT desde este presupuesto
+              Crear Orden de Trabajo
             </Button>
           )}
           {budget.work_order && (
             <Button
               icon={<LinkOutlined />}
               onClick={() => router.push(`/work-orders/${budget.work_order}`)}
+              style={{ 
+                borderRadius: "10px", 
+                height: "40px",
+                fontWeight: 600
+              }}
             >
               Ver OT #{budget.work_order}
             </Button>
@@ -261,29 +318,47 @@ export default function BudgetDetailPage() {
         <Col xs={24} lg={16}>
           <Card
             bordered={false}
-            style={{ borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
+            style={{ 
+              borderRadius: 16, 
+              boxShadow: "0 4px 15px -3px rgba(0,0,0,0.05)",
+              overflow: "hidden"
+            }}
             styles={{ body: { padding: 32 } }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <Title level={5} style={{ margin: 0, color: "#334155" }}>Ítems</Title>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#e6f4ff", display: "flex", alignItems: "center", justifyContent: "center", color: "#1677ff" }}>
+                  <FileTextOutlined style={{ fontSize: 16 }} />
+                </div>
+                <Title level={4} style={{ margin: 0, color: "#1e293b", fontWeight: 700 }}>Ítems del Presupuesto</Title>
+              </div>
               {isBorrador && (
-                <Button type="primary" icon={<PlusOutlined />} onClick={openAddItem} size="small">
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={openAddItem} 
+                  size="middle"
+                  style={{ borderRadius: 8, fontWeight: 600 }}
+                >
                   Agregar ítem
                 </Button>
               )}
             </div>
+            
             <Table
               columns={itemColumns}
               dataSource={budget.items || []}
               rowKey="id"
               pagination={false}
-              size="small"
-              locale={{ emptyText: "Sin ítems" }}
+              size="middle"
+              locale={{ emptyText: "Este presupuesto no contiene ítems todavía" }}
+              style={{ borderRadius: 8, overflow: "hidden" }}
               footer={() =>
                 (budget.items || []).length > 0 ? (
-                  <div style={{ textAlign: "right" }}>
-                    <Text strong style={{ fontSize: 16 }}>
-                      Total: <span style={{ color: "#52c41a" }}>${totalAmount.toLocaleString("es-AR")}</span>
+                  <div style={{ textAlign: "right", padding: "8px 16px" }}>
+                    <Text style={{ fontSize: 14, color: "#64748b", marginRight: 10 }}>Subtotal de ítems:</Text>
+                    <Text strong style={{ fontSize: 18, color: "#1e293b" }}>
+                      ${totalAmount.toLocaleString("es-AR")}
                     </Text>
                   </div>
                 ) : null
@@ -294,11 +369,19 @@ export default function BudgetDetailPage() {
           {budget.notes && (
             <Card
               bordered={false}
-              style={{ borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", marginTop: 24 }}
+              style={{ 
+                borderRadius: 16, 
+                boxShadow: "0 4px 15px -3px rgba(0,0,0,0.05)", 
+                marginTop: 24 
+              }}
               styles={{ body: { padding: 24 } }}
             >
-              <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>Notas</Text>
-              <Text>{budget.notes}</Text>
+              <Text strong style={{ fontSize: 13, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 8 }}>
+                Notas / Observaciones
+              </Text>
+              <div style={{ background: "#f8fafc", padding: "14px 18px", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                <Text style={{ color: "#334155", whiteSpace: "pre-wrap" }}>{budget.notes}</Text>
+              </div>
             </Card>
           )}
         </Col>
@@ -306,90 +389,127 @@ export default function BudgetDetailPage() {
         <Col xs={24} lg={8}>
           <Card
             bordered={false}
-            style={{ borderRadius: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}
-            styles={{ body: { padding: 32 } }}
+            style={{ 
+              borderRadius: 16, 
+              boxShadow: "0 4px 15px -3px rgba(0,0,0,0.05)", 
+              background: "#fff",
+              position: "sticky",
+              top: 24
+            }}
+            styles={{ body: { padding: 28 } }}
           >
-            <Title level={5} style={{ margin: "0 0 16px", color: "#334155" }}>Resumen</Title>
+            <Title level={4} style={{ margin: "0 0 20px", color: "#1e293b", fontWeight: 700 }}>Resumen</Title>
 
-            <div style={{ marginBottom: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Cliente</Text>
-              <Text strong style={{ display: "block", marginTop: 2 }}>{budget.client_name}</Text>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Estado</Text>
-              <div style={{ marginTop: 4 }}>
-                <Tag color={st.color as any}>{st.label}</Tag>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Cliente</Text>
+                <Text strong style={{ color: "#1e293b", textAlign: "right", maxWidth: "60%" }}>{budget.client_name}</Text>
               </div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Fecha Emisión</Text>
-              <Text strong style={{ display: "block", marginTop: 2 }}>
-                {budget.issue_date ? dayjs(budget.issue_date).format("DD/MM/YYYY") : "—"}
-              </Text>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Vencimiento</Text>
-              <Text strong style={{ display: "block", marginTop: 2, color: budget.expiry_date && dayjs().isAfter(dayjs(budget.expiry_date)) ? "#ff4d4f" : "inherit" }}>
-                {budget.expiry_date ? dayjs(budget.expiry_date).format("DD/MM/YYYY") : "Sin vencimiento"}
-              </Text>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Ítems</Text>
-              <Text strong style={{ display: "block", marginTop: 2 }}>{(budget.items || []).length}</Text>
-            </div>
 
-            <Divider style={{ margin: "16px 0" }} />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Subtotal</Text>
-              <Text strong>${totalAmount.toLocaleString("es-AR")}</Text>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>IVA</Text>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Nro de Orden</Text>
                 {isBorrador ? (
-                  <InputNumber
-                    min={0}
-                    max={100}
+                  <Input
+                    placeholder="O.C. / Gov #"
                     size="small"
-                    value={ivaPct}
-                    onChange={(v) => setIvaPct(v ?? 0)}
-                    onBlur={() => saveIva(ivaPct)}
-                    suffix="%"
-                    style={{ width: 80 }}
+                    value={governmentOrder}
+                    onChange={(e) => setGovernmentOrder(e.target.value)}
+                    onBlur={() => saveGovernmentOrder(governmentOrder)}
+                    style={{ width: 110, borderRadius: 6, fontSize: 12 }}
                   />
                 ) : (
-                  <Text type="secondary" style={{ fontSize: 12 }}>({ivaPct}%)</Text>
+                  <Text strong style={{ color: "#0284c7" }}>{budget.government_order || "—"}</Text>
                 )}
               </div>
-              <Text style={{ color: ivaPct > 0 ? "#f59e0b" : "#94a3b8" }}>
-                {ivaPct > 0 ? `+$${ivaAmount.toLocaleString("es-AR")}` : "—"}
-              </Text>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Estado</Text>
+                <Tag color={st.color as any} style={{ margin: 0, borderRadius: 6, fontWeight: 600 }}>{st.label}</Tag>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Fecha Emisión</Text>
+                <Text strong style={{ color: "#1e293b" }}>
+                  {budget.issue_date ? dayjs(budget.issue_date).format("DD/MM/YYYY") : "—"}
+                </Text>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Vencimiento</Text>
+                <Text strong style={{ color: budget.expiry_date && dayjs().isAfter(dayjs(budget.expiry_date)) ? "#ef4444" : "#1e293b" }}>
+                  {budget.expiry_date ? dayjs(budget.expiry_date).format("DD/MM/YYYY") : "Sin vencimiento"}
+                </Text>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text type="secondary" style={{ fontSize: 13 }}>Cantidad de Ítems</Text>
+                <Text strong style={{ color: "#1e293b" }}>{(budget.items || []).length}</Text>
+              </div>
             </div>
 
-            <Divider style={{ margin: "10px 0" }} />
+            <Divider style={{ margin: "20px 0", borderColor: "#f1f5f9" }} />
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>Total{ivaPct > 0 ? " c/IVA" : ""}</Text>
-              <Title level={3} style={{ margin: 0, color: "#52c41a" }}>
-                ${(ivaPct > 0 ? totalWithIva : totalAmount).toLocaleString("es-AR")}
-              </Title>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={{ color: "#64748b", fontSize: 14 }}>Subtotal</Text>
+                <Text strong style={{ fontSize: 16, color: "#1e293b" }}>${totalAmount.toLocaleString("es-AR")}</Text>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: "#64748b", fontSize: 14 }}>IVA</Text>
+                  {isBorrador ? (
+                    <InputNumber
+                      min={0}
+                      max={100}
+                      size="small"
+                      value={ivaPct}
+                      onChange={(v) => setIvaPct(v ?? 0)}
+                      onBlur={() => saveIva(ivaPct)}
+                      suffix="%"
+                      style={{ width: 75, borderRadius: 6 }}
+                    />
+                  ) : (
+                    <Tag style={{ margin: 0, borderRadius: 4, background: "#f1f5f9", border: "none", fontSize: 11, fontWeight: 600 }}>{ivaPct}%</Tag>
+                  )}
+                </div>
+                <Text style={{ color: ivaPct > 0 ? "#f59e0b" : "#94a3b8", fontWeight: 600, fontSize: 14 }}>
+                  {ivaPct > 0 ? `+$${ivaAmount.toLocaleString("es-AR")}` : "—"}
+                </Text>
+              </div>
+            </div>
+
+            <Divider style={{ margin: "20px 0", borderColor: "#f1f5f9" }} />
+
+            <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <Text strong style={{ fontSize: 14, color: "#475569" }}>TOTAL{ivaPct > 0 ? " c/IVA" : ""}</Text>
+                <Title level={3} style={{ margin: 0, color: "#10b981", fontWeight: 800, letterSpacing: "-0.03em" }}>
+                  ${(ivaPct > 0 ? totalWithIva : totalAmount).toLocaleString("es-AR")}
+                </Title>
+              </div>
             </div>
 
             {budget.work_order && (
-              <>
-                <Divider style={{ margin: "16px 0" }} />
-                <Text type="secondary" style={{ fontSize: 12 }}>OT vinculada</Text>
+              <div style={{ marginTop: 24 }}>
+                <Divider style={{ margin: "0 0 16px", borderColor: "#f1f5f9" }} />
+                <Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Vínculos</Text>
                 <Button
                   block
                   icon={<LinkOutlined />}
                   onClick={() => router.push(`/work-orders/${budget.work_order}`)}
-                  style={{ marginTop: 8 }}
+                  style={{ 
+                    borderRadius: "10px", 
+                    height: "42px",
+                    fontWeight: 600,
+                    background: "#f0fdf4",
+                    borderColor: "#bbf7d0",
+                    color: "#16a34a"
+                  }}
                 >
-                  OT #{budget.work_order}
+                  Ver Orden de Trabajo #{budget.work_order}
                 </Button>
-              </>
+              </div>
             )}
           </Card>
         </Col>

@@ -2,9 +2,11 @@ from django.db import models
 
 class Campaign(models.Model):
     class Status(models.TextChoices):
-        BORRADOR = 'borrador', 'Borrador'
+        PRESUPUESTO = 'presupuesto', 'Presupuesto'
+        APROBADO = 'aprobado', 'Aprobado'
         ACTIVA = 'activa', 'Activa'
         FINALIZADA = 'finalizada', 'Finalizada'
+        CANCELADA = 'cancelada', 'Cancelada'
 
     client = models.ForeignKey(
         'clients.Client',
@@ -17,7 +19,7 @@ class Campaign(models.Model):
     status = models.CharField(
         max_length=20,
         choices=Status.choices,
-        default=Status.BORRADOR
+        default=Status.PRESUPUESTO
     )
     budget_total = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     notes = models.TextField(blank=True)

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Modal, Form, Select, Input, Button, Divider, Alert, Spin, notification } from "antd";
 import { FileProtectOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
@@ -27,10 +28,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({
   clientName,
   totalAmount,
 }) => {
+  const router = useRouter();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [budgetData, setBudgetData] = useState<any>(null);
   const [loadingBudget, setLoadingBudget] = useState(false);
+
+  const billingType = Form.useWatch('billing_type', form);
 
   useEffect(() => {
     if (open && budgetId) {
@@ -70,9 +74,16 @@ export const BillingModal: React.FC<BillingModalProps> = ({
       await axiosInstance.post(`${API}/budgets/${finalBudgetId}/invoice/`, values);
       
       notification.success({
-        message: "Facturación exitosa",
-        description: `El presupuesto PRE-${String(finalBudgetId).padStart(4, "0")} ha sido marcado como facturado.`,
+        message: values.billing_type === "remito" ? "Remito generado" : "Facturación exitosa",
+        description: values.billing_type === "remito" 
+          ? `El remito del presupuesto PRE-${String(finalBudgetId).padStart(4, "0")} está listo.` 
+          : `El presupuesto PRE-${String(finalBudgetId).padStart(4, "0")} ha sido marcado como facturado.`,
       });
+
+      if (values.billing_type === "remito") {
+        router.push(`/budgets/${finalBudgetId}/remito`);
+      }
+
       onSuccess();
       onClose();
     } catch (e: any) {
@@ -116,6 +127,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({
         layout="vertical"
         onFinish={handleFinish}
         initialValues={{
+          billing_type: "factura",
           receipt_type: "factura_b",
           payment_method: "transferencia",
         }}
@@ -129,6 +141,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({
                 <span style={{ color: "#64748b" }}>Cliente:</span>
                 <span style={{ fontWeight: 700, color: "#1e293b" }}>{clientName}</span>
               </div>
+              {budgetData?.government_order && (
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ color: "#64748b" }}>Nro de Orden:</span>
+                  <span style={{ fontWeight: 700, color: "#0284c7" }}>{budgetData.government_order}</span>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: ivaPct > 0 ? 6 : 0 }}>
                 <span style={{ color: "#64748b" }}>{ivaPct > 0 ? "Subtotal:" : "Total a Facturar:"}</span>
                 <span style={{ fontWeight: ivaPct > 0 ? 500 : 800, color: ivaPct > 0 ? "#475569" : "#10b981", fontSize: ivaPct > 0 ? 14 : 16 }}>
@@ -155,13 +173,28 @@ export const BillingModal: React.FC<BillingModalProps> = ({
 
         <Divider orientation="left" style={{ fontSize: 12, color: "#94a3b8" }}>Configuración Fiscal</Divider>
 
-        <Form.Item name="receipt_type" label="Tipo de Comprobante">
-          <Select disabled>
-            <Select.Option value="factura_a">Factura A</Select.Option>
-            <Select.Option value="factura_b">Factura B</Select.Option>
-            <Select.Option value="factura_c">Factura C</Select.Option>
+        <Form.Item name="billing_type" label="Tipo de Operación">
+          <Select onChange={(val) => {
+            if (val === 'remito') {
+              form.setFieldsValue({ receipt_type: null });
+            } else {
+              form.setFieldsValue({ receipt_type: 'factura_b' });
+            }
+          }}>
+            <Select.Option value="factura">Emisión de Factura (AFIP)</Select.Option>
+            <Select.Option value="remito">Emisión de Remito (Uso Interno)</Select.Option>
           </Select>
         </Form.Item>
+
+        {billingType !== "remito" && (
+          <Form.Item name="receipt_type" label="Tipo de Comprobante">
+            <Select disabled>
+              <Select.Option value="factura_a">Factura A</Select.Option>
+              <Select.Option value="factura_b">Factura B</Select.Option>
+              <Select.Option value="factura_c">Factura C</Select.Option>
+            </Select>
+          </Form.Item>
+        )}
 
         <Form.Item name="payment_method" label="Método de Pago">
           <Select>

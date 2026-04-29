@@ -11,7 +11,7 @@ import {
   ClockCircleOutlined, WarningOutlined, FireOutlined,
   PlayCircleOutlined, CheckCircleOutlined, StopOutlined, PlusOutlined, CloseOutlined,
   ReloadOutlined, EyeOutlined, ShoppingCartOutlined, EditOutlined, MessageOutlined,
-  DownOutlined, AppstoreOutlined, HistoryOutlined,
+  DownOutlined, AppstoreOutlined, HistoryOutlined, FlagOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import { FinishedWorksTab } from "./FinishedWorksTab";
@@ -145,6 +145,11 @@ function WOTable({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                         <Text type="secondary" style={{ fontSize: 11, whiteSpace: "nowrap" }}>OT #{wo.id}</Text>
+                        {wo.campaign && (
+                          <Tooltip title={`Campaña: ${wo.campaign_name || "Asignada"}`}>
+                            <FlagOutlined style={{ color: "#fa8c16", fontSize: 12 }} />
+                          </Tooltip>
+                        )}
                         {isInmediata && (
                           <Tooltip title="Prioridad inmediata">
                             <FireOutlined style={{ color: "#ff4d4f", fontSize: 12 }} />
@@ -163,6 +168,17 @@ function WOTable({
                         }}>
                           {otSt.label.toUpperCase()}
                         </span>
+                        {wo.campaign && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 600,
+                            color: "#d46b08",
+                            background: "#fff7e6",
+                            border: "1px solid #ffd591",
+                            padding: "1px 5px", borderRadius: 4,
+                          }}>
+                            CAMPAÑA
+                          </span>
+                        )}
                       </div>
                       <Text strong style={{ fontSize: 13, display: "block", lineHeight: 1.3, marginBottom: 2 }} ellipsis={{ tooltip: wo.title }}>
                         {wo.title}
