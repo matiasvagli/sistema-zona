@@ -150,7 +150,7 @@ export const RefineContext = ({ children }: { children: React.ReactNode }) => {
                         ]}
                         options={{
                             syncWithLocation: true,
-                            warnWhenUnsavedChanges: true,
+                            warnWhenUnsavedChanges: false,
                         }}
                     >
                         {children}

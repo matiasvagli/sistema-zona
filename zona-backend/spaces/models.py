@@ -96,6 +96,8 @@ class SpaceExpense(models.Model):
         SEGURO = 'seguro', 'Seguro'
         IMPUESTO = 'impuesto', 'Impuesto Municipal'
         MANTENIMIENTO = 'mantenimiento', 'Mantenimiento / Reparación'
+        INSTALACION = 'instalacion', 'Instalación de Estructura'
+        REPARACION = 'reparacion', 'Reparación de Estructura'
         OTRO = 'otro', 'Otro'
 
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='expenses', null=True, blank=True)

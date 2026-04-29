@@ -1,19 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { axiosInstance } from "@/utils/axios-instance";
 import { Tabs, Card, Table, Typography, Tag, Button, Modal, Form, Input, InputNumber, Select, Row, Col, Space, Upload, notification, Spin, Empty } from "antd";
-import { EnvironmentOutlined, BuildOutlined, DollarOutlined, UserOutlined, PlusOutlined, MinusCircleOutlined, UploadOutlined, EditOutlined, SwapOutlined, CameraOutlined, WarningOutlined, ThunderboltOutlined, FileTextOutlined, ZoomInOutlined, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
-import { useSelect, useList } from "@refinedev/core";
+import { EnvironmentOutlined, BuildOutlined, DollarOutlined, UserOutlined, PlusOutlined, MinusCircleOutlined, UploadOutlined, EditOutlined, SwapOutlined, CameraOutlined, WarningOutlined, ThunderboltOutlined, FileTextOutlined, ZoomInOutlined, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, BankOutlined, ToolOutlined, SearchOutlined } from "@ant-design/icons";
+import { useSelect, useList, useInvalidate } from "@refinedev/core";
 import { useModalForm, useTable } from "@refinedev/antd";
 import dayjs from "dayjs";
 
 const { Title, Text } = Typography;
 
 export default function SpacesHubPage() {
+    const [activeGroup, setActiveGroup] = useState<'inmuebles' | 'operaciones'>('inmuebles');
+    const [activeOpsTab, setActiveOpsTab] = useState<'estructuras' | 'reservas' | 'gastos'>('estructuras');
+    const [preselectedFaceId, setPreselectedFaceId] = useState<any>(null);
+
     return (
         <div style={{ padding: "32px", background: "#f1f5f9", minHeight: "100vh" }}>
 
-            {/* ── Header Premium ────────────────────────────────────────── */}
+            {/* ── Header Premium ───────────────────────────────────────── */}
             <div style={{
                 background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)",
                 borderRadius: "20px",
@@ -30,19 +35,12 @@ export default function SpacesHubPage() {
                 overflow: "hidden"
             }}>
                 <div style={{ position: "absolute", top: "-50%", right: "-10%", width: "400px", height: "400px", background: "rgba(255,255,255,0.05)", borderRadius: "50%", pointerEvents: "none" }} />
-
                 <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                     <div style={{
-                        width: "64px",
-                        height: "64px",
-                        borderRadius: "16px",
-                        background: "rgba(255,255,255,0.1)",
-                        backdropFilter: "blur(10px)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "32px",
-                        border: "1px solid rgba(255,255,255,0.2)"
+                        width: "64px", height: "64px", borderRadius: "16px",
+                        background: "rgba(255,255,255,0.1)", backdropFilter: "blur(10px)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: "32px", border: "1px solid rgba(255,255,255,0.2)"
                     }}>
                         <EnvironmentOutlined />
                     </div>
@@ -57,30 +55,131 @@ export default function SpacesHubPage() {
                 </div>
             </div>
 
+            {/* ── Selector de grupo ── */}
+            <div style={{
+                display: "flex",
+                gap: 8,
+                marginBottom: 20,
+                background: "#fff",
+                borderRadius: 16,
+                padding: 6,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+                width: "fit-content",
+            }}>
+                {(([
+                    { key: 'inmuebles', icon: <BankOutlined />, label: 'Activos Inmobiliarios', color: '#2563eb' },
+                    { key: 'operaciones', icon: <ToolOutlined />, label: 'Operaciones', color: '#0891b2' },
+                ]) as {key: 'inmuebles'|'operaciones', icon: React.ReactNode, label: string, color: string}[]).map(opt => (
+                    <button
+                        key={opt.key}
+                        onClick={() => setActiveGroup(opt.key)}
+                        style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "10px 22px",
+                            borderRadius: 12, border: "none", cursor: "pointer",
+                            fontSize: 14, fontWeight: 700, transition: "all 0.18s",
+                            background: activeGroup === opt.key
+                                ? `linear-gradient(135deg, ${opt.color}18, ${opt.color}10)`
+                                : "transparent",
+                            color: activeGroup === opt.key ? opt.color : "#94a3b8",
+                            boxShadow: activeGroup === opt.key ? `0 0 0 2px ${opt.color}30` : "none",
+                        }}
+                    >
+                        <span style={{ fontSize: 16 }}>{opt.icon}</span>
+                        {opt.label}
+                    </button>
+                ))}
+            </div>
+
             <Card
                 variant="borderless"
-                style={{
-                    borderRadius: "24px",
-                    boxShadow: "0 10px 40px rgba(0,0,0,0.04)",
-                    overflow: "hidden"
-                }}
+                style={{ borderRadius: "24px", boxShadow: "0 10px 40px rgba(0,0,0,0.04)", overflow: "hidden" }}
                 styles={{ body: { padding: 0 } }}
             >
-                <Tabs
-                    defaultActiveKey="1"
-                    centered
-                    size="large"
-                    tabBarStyle={{ padding: "16px 24px 0", background: "#fff", borderBottom: "1px solid #f1f5f9", marginBottom: 0 }}
-                    items={[
-                        { key: "1", label: <span style={{ fontWeight: 600 }}><EnvironmentOutlined /> Terrenos</span>, children: <div style={{ padding: "32px" }}><LocationsTab /></div> },
-                        { key: "2", label: <span style={{ fontWeight: 600 }}><BuildOutlined /> Estructuras</span>, children: <div style={{ padding: "32px" }}><StructuresTab /></div> },
-                        { key: "3", label: <span style={{ fontWeight: 600 }}><SwapOutlined /> Reservas</span>, children: <div style={{ padding: "32px" }}><RentalsTab /></div> },
-                        { key: "6", label: <span style={{ fontWeight: 600 }}><ThunderboltOutlined /> Slots LED</span>, children: <div style={{ padding: "32px" }}><LEDSlotsTab /></div> },
-                        { key: "7", label: <span style={{ fontWeight: 600 }}><FileTextOutlined /> Gastos</span>, children: <div style={{ padding: "32px" }}><GastosTab /></div> },
-                        { key: "4", label: <span style={{ fontWeight: 600 }}><DollarOutlined /> Contratos</span>, children: <div style={{ padding: "32px" }}><ContractsTab /></div> },
-                        { key: "5", label: <span style={{ fontWeight: 600 }}><UserOutlined /> Propietarios</span>, children: <div style={{ padding: "32px" }}><LandlordsTab /></div> },
-                    ]}
-                />
+                {/* ── Grupo 1: Activos Inmobiliarios ── */}
+                {activeGroup === 'inmuebles' && (
+                    <Tabs
+                        defaultActiveKey="terrenos"
+                        size="large"
+                        tabBarStyle={{ padding: "16px 32px 0", background: "#fff", borderBottom: "1px solid #f1f5f9", marginBottom: 0 }}
+                        tabBarGutter={32}
+                        items={[
+                            {
+                                key: "terrenos",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <EnvironmentOutlined style={{ color: "#2563eb", marginRight: 6 }} />
+                                        Terrenos
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><LocationsTab /></div>
+                            },
+                            {
+                                key: "contratos",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <DollarOutlined style={{ color: "#16a34a", marginRight: 6 }} />
+                                        Contratos
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><ContractsTab /></div>
+                            },
+                            {
+                                key: "propietarios",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <UserOutlined style={{ color: "#7c3aed", marginRight: 6 }} />
+                                        Propietarios
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><LandlordsTab /></div>
+                            },
+                        ]}
+                    />
+                )}
+
+                {/* ── Grupo 2: Operaciones ── */}
+                {activeGroup === 'operaciones' && (
+                    <Tabs
+                        activeKey={activeOpsTab}
+                        onChange={(k: any) => setActiveOpsTab(k)}
+                        size="large"
+                        tabBarStyle={{ padding: "16px 32px 0", background: "#fff", borderBottom: "1px solid #f1f5f9", marginBottom: 0 }}
+                        tabBarGutter={32}
+                        items={[
+                            {
+                                key: "estructuras",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <BuildOutlined style={{ color: "#2563eb", marginRight: 6 }} />
+                                        Estructuras
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><StructuresTab setActiveOpsTab={setActiveOpsTab} setPreselectedFaceId={setPreselectedFaceId} /></div>
+                            },
+                            {
+                                key: "reservas",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <SwapOutlined style={{ color: "#0891b2", marginRight: 6 }} />
+                                        Reservas
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><RentalsTab preselectedFaceId={preselectedFaceId} setPreselectedFaceId={setPreselectedFaceId} /></div>
+                            },
+                            {
+                                key: "gastos",
+                                label: (
+                                    <span style={{ fontWeight: 600 }}>
+                                        <FileTextOutlined style={{ color: "#dc2626", marginRight: 6 }} />
+                                        Gastos
+                                    </span>
+                                ),
+                                children: <div style={{ padding: "32px" }}><GastosTab /></div>
+                            },
+                        ]}
+                    />
+                )}
             </Card>
 
             <style>{`
@@ -221,6 +320,68 @@ function LocationsTab() {
         }
     };
 
+    const [previewLocation, setPreviewLocation] = React.useState<any>(null);
+    const [expensesLocation, setExpensesLocation] = React.useState<any>(null);
+    const [searchName, setSearchName] = React.useState('');
+    const [searchLocality, setSearchLocality] = React.useState('');
+    const [sortByExpiration, setSortByExpiration] = React.useState<boolean>(true);
+    const [expenseFilterType, setExpenseFilterType] = React.useState<string | undefined>(undefined);
+    const [expenseFilterStartDate, setExpenseFilterStartDate] = React.useState<string | undefined>(undefined);
+    const [expenseFilterEndDate, setExpenseFilterEndDate] = React.useState<string | undefined>(undefined);
+
+    const [locationExpenses, setLocationExpenses] = React.useState<any[]>([]);
+    const [loadingExpenses, setLoadingExpenses] = React.useState(false);
+
+    const fetchLocationExpenses = useCallback(async (locationId: number) => {
+        setLoadingExpenses(true);
+        try {
+            const res = await axiosInstance.get(
+                `http://localhost:8000/api/v1/space-expenses/?location=${locationId}&page_size=500`
+            );
+            const data = res.data;
+            // DRF puede devolver { results: [...] } o directamente [...]
+            setLocationExpenses(Array.isArray(data) ? data : (data.results || data.data || []));
+        } catch (e) {
+            setLocationExpenses([]);
+        } finally {
+            setLoadingExpenses(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        if (expensesLocation?.id) {
+            fetchLocationExpenses(Number(expensesLocation.id));
+        } else {
+            setLocationExpenses([]);
+        }
+    }, [expensesLocation, fetchLocationExpenses]);
+
+    const { modalProps: expenseFormProps, formProps: expenseFormConfig, show: showExpenseForm } = useModalForm({
+        resource: "space-expenses",
+        action: "create",
+        warnWhenUnsavedChanges: false,
+        successNotification: () => {
+            if (expensesLocation?.id) fetchLocationExpenses(Number(expensesLocation.id));
+            return { message: "Gasto registrado exitosamente", type: "success" };
+        }
+    });
+
+    const locations = tableProps.dataSource || [];
+
+    let filteredLocations = locations.filter((loc: any) => {
+        const matchName = !searchName || loc.name?.toLowerCase().includes(searchName.toLowerCase());
+        const matchLocality = !searchLocality || loc.locality?.toLowerCase().includes(searchLocality.toLowerCase());
+        return matchName && matchLocality;
+    });
+
+    if (sortByExpiration) {
+        filteredLocations.sort((a: any, b: any) => {
+            if (!a.contract_end_date) return 1;
+            if (!b.contract_end_date) return -1;
+            return dayjs(a.contract_end_date).unix() - dayjs(b.contract_end_date).unix();
+        });
+    }
+
     return (
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
@@ -234,45 +395,452 @@ function LocationsTab() {
                     Nuevo Terreno
                 </Button>
             </div>
-            <Table {...tableProps} rowKey="id" className="premium-table">
-                <Table.Column dataIndex="name" title="Nombre / Referencia" render={(val) => <Text strong>{val}</Text>} />
-                <Table.Column dataIndex="address" title="Dirección" />
-                <Table.Column dataIndex="locality" title="Localidad" render={(val) => val || <Text type="secondary">-</Text>} />
-                <Table.Column dataIndex="landlord_name" title="Propietario" render={(val) => val || <Text type="secondary">N/A</Text>} />
-                <Table.Column dataIndex="rent_amount" title="Alquiler" render={(val) => val ? `$${val}` : '-'} />
-                <Table.Column dataIndex="rent_period" title="Periodo" render={(val) => {
-                    const colors: any = { mensual: 'blue', bimestral: 'cyan', semestral: 'purple', anual: 'gold', por_contrato: 'magenta' };
-                    return val ? <Tag color={colors[val] || 'default'} style={{ borderRadius: '12px', padding: '2px 12px' }}>{val.replace('_', ' ').toUpperCase()}</Tag> : null;
-                }} />
-                <Table.Column title="Contrato PDF" render={(_, record: any) => {
-                    if (record.contract_file) {
-                        return <a href={record.contract_file} target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}><UploadOutlined /> Ver PDF</a>;
+
+            <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 16, borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                <Input
+                    placeholder="Buscar por nombre..."
+                    prefix={<SearchOutlined />}
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    style={{ width: 240, borderRadius: 10 }}
+                    size="large"
+                    allowClear
+                />
+                <Input
+                    placeholder="Localidad..."
+                    prefix={<EnvironmentOutlined />}
+                    value={searchLocality}
+                    onChange={(e) => setSearchLocality(e.target.value)}
+                    style={{ width: 200, borderRadius: 10 }}
+                    size="large"
+                    allowClear
+                />
+                <Select
+                    value={sortByExpiration}
+                    onChange={(val) => setSortByExpiration(val)}
+                    options={[
+                        { label: 'Vencimiento más próximo', value: true },
+                        { label: 'Sin orden por vencimiento', value: false }
+                    ]}
+                    style={{ width: 240 }}
+                    size="large"
+                />
+            </div>
+
+            {tableProps.loading ? (
+                <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>
+            ) : filteredLocations.length === 0 ? (
+                <Empty description="No se encontraron terrenos con esos filtros" style={{ padding: 60 }} />
+            ) : (
+                <Row gutter={[24, 24]}>
+                    {filteredLocations.map((record: any) => {
+                        const lat = record.latitude;
+                        const lon = record.longitude;
+                        const hasMap = !!(lat && lon);
+                        const daysLeft = record.contract_end_date ? dayjs(record.contract_end_date).diff(dayjs(), 'day') : null;
+                        
+                        let tagColor = 'default';
+                        let tagText = 'Sin contrato';
+                        if (daysLeft !== null) {
+                            if (daysLeft < 0) { tagColor = 'error'; tagText = 'Vencido'; }
+                            else if (daysLeft <= 30) { tagColor = 'warning'; tagText = `Vence en ${daysLeft}d`; }
+                            else { tagColor = 'success'; tagText = 'Vigente'; }
+                        }
+
+                        return (
+                            <Col key={record.id} xs={24} sm={12} md={8} lg={6}>
+                                <Card
+                                    hoverable
+                                    cover={
+                                        hasMap ? (
+                                            <div style={{ height: 160, overflow: 'hidden', position: 'relative' }}>
+                                                <iframe
+                                                    width="100%"
+                                                    height="100%"
+                                                    style={{ border: 0, pointerEvents: 'none', display: 'block' }}
+                                                    src={`https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`}
+                                                />
+                                                <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                                                    <Tag color={tagColor} style={{ borderRadius: 12, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>{tagText}</Tag>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div style={{
+                                                height: 160,
+                                                background: 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                flexDirection: 'column', gap: 8, position: 'relative'
+                                            }}>
+                                                <EnvironmentOutlined style={{ fontSize: 36, color: '#94a3b8' }} />
+                                                <Text type="secondary" style={{ fontSize: 12 }}>Sin coordenadas de mapa</Text>
+                                                <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                                                    <Tag color={tagColor} style={{ borderRadius: 12, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>{tagText}</Tag>
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+                                    styles={{ body: { padding: 16 } }}
+                                    style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #f1f5f9' }}
+                                    onClick={() => setPreviewLocation(record)}
+                                >
+                                    <Text strong style={{ display: 'block', fontSize: 15, marginBottom: 4 }}>{record.name}</Text>
+                                    <Text type="secondary" style={{ display: 'block', fontSize: 13, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <EnvironmentOutlined style={{ marginRight: 4 }} />{record.address || 'Sin dirección'}
+                                    </Text>
+                                    
+                                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 10, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <Text type="secondary" style={{ fontSize: 11 }}>Vencimiento:</Text>
+                                            <Text style={{ fontSize: 12, fontWeight: 600 }}>
+                                                {record.contract_end_date ? dayjs(record.contract_end_date).format('DD/MM/YYYY') : 'Sin contrato'}
+                                            </Text>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <Button
+                                                type="default"
+                                                size="small"
+                                                icon={<DollarOutlined />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setExpensesLocation(record);
+                                                }}
+                                                style={{ color: '#10b981', borderColor: '#10b981' }}
+                                            >
+                                                Gastos
+                                            </Button>
+                                            <Button
+                                                type="dashed"
+                                                size="small"
+                                                icon={<EditOutlined />}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setModalAction("edit");
+                                                    setModalId(record.id);
+                                                    setTimeout(() => show(), 0);
+                                                }}
+                                            >
+                                                Editar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </Col>
+                        );
+                    })}
+                </Row>
+            )}
+
+            {/* ── Modal de Detalle de Terreno ── */}
+            <Modal
+                open={!!previewLocation}
+                onCancel={() => setPreviewLocation(null)}
+                footer={null}
+                width={600}
+                centered
+                styles={{ body: { padding: 24 } }}
+                style={{ borderRadius: 20 }}
+                title={<Title level={4} style={{ margin: 0, color: '#1e3a8a' }}><EnvironmentOutlined /> Detalle del Terreno</Title>}
+            >
+                {previewLocation && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Nombre / Referencia</Text>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>{previewLocation.name}</div>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: '#f8fafc', padding: 16, borderRadius: 12 }}>
+                            <div>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Propietario</Text>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                                    {previewLocation.landlord_name || landlordOptions?.find((o: any) => String(o.value) === String(previewLocation.landlord))?.label || 'No especificado'}
+                                </div>
+                            </div>
+                            <div>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Alquiler</Text>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginTop: 4 }}>
+                                    {previewLocation.rent_amount ? `$${previewLocation.rent_amount}` : 'N/A'} 
+                                    {previewLocation.rent_period ? ` (${previewLocation.rent_period.toUpperCase()})` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Vencimiento del Contrato</Text>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginTop: 4 }}>
+                                    {previewLocation.contract_end_date ? dayjs(previewLocation.contract_end_date).format('DD/MM/YYYY') : 'Sin contrato'}
+                                </div>
+                            </div>
+                            <div>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Documento Adjunto</Text>
+                                <div style={{ marginTop: 4 }}>
+                                    {previewLocation.contract_file ? (
+                                        <a href={previewLocation.contract_file} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}>
+                                            <UploadOutlined /> Descargar Contrato
+                                        </a>
+                                    ) : (
+                                        <Text type="secondary">No hay PDF cargado</Text>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {previewLocation.latitude && previewLocation.longitude && (
+                            <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', marginTop: 8 }}>
+                                <iframe
+                                    width="100%"
+                                    height="250"
+                                    style={{ border: 0, display: 'block' }}
+                                    loading="lazy"
+                                    allowFullScreen
+                                    src={`https://maps.google.com/maps?q=${previewLocation.latitude},${previewLocation.longitude}&z=16&output=embed`}
+                                />
+                            </div>
+                        )}
+                        
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+                            <Button onClick={() => setPreviewLocation(null)} style={{ borderRadius: 8 }}>Cerrar</Button>
+                            <Button 
+                                type="primary" 
+                                icon={<EditOutlined />} 
+                                style={{ background: '#2563eb', border: 'none', borderRadius: 8 }}
+                                onClick={() => {
+                                    const id = previewLocation.id;
+                                    setPreviewLocation(null);
+                                    setModalAction("edit");
+                                    setModalId(id);
+                                    setTimeout(() => show(), 0);
+                                }}
+                            >
+                                Editar
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* ── Modal de Gastos del Terreno ── */}
+            <Modal
+                open={!!expensesLocation}
+                onCancel={() => setExpensesLocation(null)}
+                footer={null}
+                width={1000}
+                centered
+                styles={{ body: { padding: 24 } }}
+                style={{ borderRadius: 20 }}
+                title={<Title level={4} style={{ margin: 0, color: '#059669' }}><DollarOutlined /> Control de Gastos: {expensesLocation?.name}</Title>}
+            >
+                {expensesLocation && (() => {
+                    const filteredExpenses = locationExpenses.filter((e: any) => {
+                        const matchesType = !expenseFilterType || e.expense_type === expenseFilterType;
+                        const matchesStart = !expenseFilterStartDate || (e.date && e.date >= expenseFilterStartDate);
+                        const matchesEnd = !expenseFilterEndDate || (e.date && e.date <= expenseFilterEndDate);
+                        return matchesType && matchesStart && matchesEnd;
+                    });
+
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            {/* Barra de Filtros */}
+                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', background: '#f8fafc', padding: '16px 20px', borderRadius: 12, alignItems: 'center' }}>
+                                <div style={{ minWidth: 200 }}>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Filtrar por Tipo</Text>
+                                    <Select 
+                                        allowClear 
+                                        placeholder="Todos los conceptos" 
+                                        value={expenseFilterType} 
+                                        onChange={(v) => setExpenseFilterType(v)}
+                                        style={{ width: '100%' }}
+                                        options={[
+                                            { label: 'Alquiler Terreno', value: 'alquiler' },
+                                            { label: 'Luz / Energía', value: 'luz' },
+                                            { label: 'Seguro', value: 'seguro' },
+                                            { label: 'Impuesto Municipal', value: 'impuesto' },
+                                            { label: 'Mantenimiento', value: 'mantenimiento' },
+                                            { label: 'Otro', value: 'otro' }
+                                        ]}
+                                    />
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Desde Fecha</Text>
+                                    <Input 
+                                        type="date" 
+                                        value={expenseFilterStartDate} 
+                                        onChange={(e) => setExpenseFilterStartDate(e.target.value || undefined)} 
+                                        style={{ width: 180 }}
+                                    />
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Hasta Fecha</Text>
+                                    <Input 
+                                        type="date" 
+                                        value={expenseFilterEndDate} 
+                                        onChange={(e) => setExpenseFilterEndDate(e.target.value || undefined)} 
+                                        style={{ width: 180 }}
+                                    />
+                                </div>
+                                <div style={{ alignSelf: 'flex-end', paddingBottom: 2 }}>
+                                    <Button 
+                                        type="text" 
+                                        onClick={() => {
+                                            setExpenseFilterType(undefined);
+                                            setExpenseFilterStartDate(undefined);
+                                            setExpenseFilterEndDate(undefined);
+                                        }}
+                                        danger
+                                        style={{ fontWeight: 500 }}
+                                    >
+                                        Limpiar Filtros
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <Text type="secondary">Inversión acumulada en este terreno</Text>
+                                    <div style={{ fontSize: 24, fontWeight: 800, color: '#047857' }}>
+                                        ${filteredExpenses.reduce((acc: number, cur: any) => acc + Number(cur.amount), 0).toLocaleString('es-AR')}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <Button
+                                        icon={<UploadOutlined />}
+                                        onClick={() => {
+                                            const csvContent = "data:text/csv;charset=utf-8," 
+                                                + "Fecha,Tipo,Monto,Descripcion\n"
+                                                + filteredExpenses.map((e: any) => `${e.date},${e.expense_type},${e.amount},"${e.description || ''}"`).join("\n");
+                                            const encodedUri = encodeURI(csvContent);
+                                            const link = document.createElement("a");
+                                            link.setAttribute("href", encodedUri);
+                                            link.setAttribute("download", `gastos_${expensesLocation.name.replace(/\s+/g, '_')}.csv`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }}
+                                    >
+                                        Exportar CSV
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        style={{ background: '#059669', border: 'none' }}
+                                        onClick={() => {
+                                            showExpenseForm();
+                                            setTimeout(() => {
+                                                expenseFormConfig.form?.setFieldsValue({
+                                                    date: dayjs().format('YYYY-MM-DD'),
+                                                    expense_type: 'alquiler',
+                                                    amount: expensesLocation.rent_amount ? Number(expensesLocation.rent_amount) : undefined,
+                                                });
+                                            }, 150);
+                                        }}
+                                    >
+                                        Registrar Gasto
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {loadingExpenses ? (
+                                <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+                            ) : filteredExpenses.length === 0 ? (
+                                <Empty description="No se han registrado gastos para este terreno" />
+                            ) : (
+                                <Table
+                                    dataSource={filteredExpenses}
+                                    rowKey="id"
+                                    pagination={{ pageSize: 5 }}
+                                    size="small"
+                                    className="premium-table"
+                                >
+                                    <Table.Column dataIndex="date" title="Fecha" render={(v) => dayjs(v).format('DD/MM/YYYY')} />
+                                    <Table.Column dataIndex="expense_type" title="Tipo" render={(v: string) => {
+                                        const labels: Record<string, string> = { alquiler: 'Alquiler', luz: 'Luz', seguro: 'Seguro', impuesto: 'Impuesto', mantenimiento: 'Mantenimiento', otro: 'Otro' };
+                                        const colors: Record<string, string> = { alquiler: 'blue', luz: 'orange', seguro: 'purple', impuesto: 'cyan', mantenimiento: 'volcano', otro: 'default' };
+                                        return <Tag color={colors[v] || 'default'}>{labels[v] || v.toUpperCase()}</Tag>;
+                                    }} />
+                                    <Table.Column dataIndex="amount" title="Monto" render={(v) => `$${Number(v).toLocaleString('es-AR')}`} />
+                                    <Table.Column dataIndex="description" title="Descripción" ellipsis />
+                                </Table>
+                            )}
+                        </div>
+                    );
+                })()}
+            </Modal>
+
+            <Modal 
+                {...expenseFormProps} 
+                title={<b>Registrar Nuevo Gasto</b>} 
+                width={600} 
+                centered 
+                zIndex={1100}
+                onCancel={() => {
+                    if (expenseFormConfig.form?.isFieldsTouched()) {
+                        Modal.confirm({
+                            title: '¿Cerrar formulario?',
+                            icon: <WarningOutlined style={{ color: '#faad14' }} />,
+                            content: 'Tenés cambios sin guardar que se van a perder.',
+                            okText: 'Sí, salir',
+                            cancelText: 'No, quedarme',
+                            okButtonProps: { danger: true },
+                            onOk: () => {
+                                (expenseFormProps.onCancel as any)?.();
+                            }
+                        });
+                    } else {
+                        (expenseFormProps.onCancel as any)?.();
                     }
-                    return <Text type="secondary">-</Text>;
-                }} />
-                <Table.Column title="Mapa" render={(_, record: any) => {
-                    if (record.latitude && record.longitude) {
-                        return <a href={`https://maps.google.com/?q=${record.latitude},${record.longitude}`} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 600 }}><EnvironmentOutlined /> Ver Maps</a>;
-                    }
-                    return <Text type="secondary">Sin coords</Text>;
-                }} />
-                <Table.Column dataIndex="is_active" title="Estado" render={(val) => val ? <Tag color="success" style={{ borderRadius: '12px', padding: '2px 12px' }}>ACTIVO</Tag> : <Tag color="default" style={{ borderRadius: '12px' }}>INACTIVO</Tag>} />
-                <Table.Column title="Acciones" render={(_, record: any) => (
-                    <Button type="dashed" size="small" icon={<EditOutlined />} onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }}>Editar</Button>
-                )} />
-            </Table>
+                }}
+            >
+                <Form
+                    {...expenseFormConfig}
+                    layout="vertical"
+                    onFinish={(values) => {
+                        (expenseFormConfig.onFinish as any)?.({
+                            ...values,
+                            location: expensesLocation?.id ? Number(expensesLocation.id) : undefined,
+                        });
+                    }}
+                >
+                    <Form.Item label="Tipo de Gasto" name="expense_type" rules={[{ required: true }]}>
+                        <Select
+                            options={[
+                                { label: 'Alquiler Terreno', value: 'alquiler' },
+                                { label: 'Luz / Energía', value: 'luz' },
+                                { label: 'Seguro', value: 'seguro' },
+                                { label: 'Impuesto Municipal', value: 'impuesto' },
+                                { label: 'Mantenimiento', value: 'mantenimiento' },
+                                { label: 'Otro', value: 'otro' }
+                            ]}
+                        />
+                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Monto" name="amount" rules={[{ required: true }]}>
+                                <InputNumber prefix="$" style={{ width: '100%' }} min={0} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Fecha de Pago" name="date" rules={[{ required: true }]}>
+                                <Input type="date" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Form.Item label="Descripción / Observación" name="description">
+                        <Input.TextArea rows={3} placeholder="Detalles de la factura o el servicio..." />
+                    </Form.Item>
+                </Form>
+            </Modal>
 
             <Modal {...modalProps} title={<b>{modalAction === "create" ? "Registrar Nuevo Terreno" : "Editar Terreno"}</b>} width={700} centered>
                 <Form {...formProps} layout="vertical" onFinish={handleFormFinish}>
                     <Row gutter={16}>
                         <Col span={12}><Form.Item label="Nombre Referencia" name="name" rules={[{ required: true }]}><Input placeholder="Ej: Esquina Mitre y San Martín" size="large" /></Form.Item></Col>
                         <Col span={12}>
-                            <Form.Item label="Propietario" name="landlord">
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <Select options={landlordOptions} placeholder="Seleccionar" allowClear showSearch optionFilterProp="label" style={{ flex: 1 }} size="large" />
-                                    <Button icon={<PlusOutlined />} onClick={() => showLandlord()} title="Agregar propietario" size="large" />
-                                </div>
-                            </Form.Item>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                <Form.Item label="Propietario" name="landlord" style={{ flex: 1 }}>
+                                    <Select options={landlordOptions} placeholder="Seleccionar" allowClear showSearch optionFilterProp="label" size="large" />
+                                </Form.Item>
+                                <Button icon={<PlusOutlined />} onClick={() => showLandlord()} title="Agregar propietario" size="large" style={{ marginTop: 30 }} />
+                            </div>
                         </Col>
                     </Row>
 
@@ -415,12 +983,38 @@ function StructureDetailModal({
     onClose,
     typeColors,
     typeLabels,
+    setActiveOpsTab,
+    setPreselectedFaceId,
 }: {
     structure: any;
     onClose: () => void;
     typeColors: Record<string, string>;
     typeLabels: Record<string, string>;
+    setActiveOpsTab: (tab: any) => void;
+    setPreselectedFaceId: (id: any) => void;
 }) {
+    const [plData, setPlData] = React.useState<any>(null);
+    const [loadingPL, setLoadingPL] = React.useState(false);
+    const [activeTab, setActiveTab] = React.useState('info');
+
+    React.useEffect(() => {
+        if (!structure?.id) { setPlData(null); return; }
+        setActiveTab('info');
+        setLoadingPL(true);
+        Promise.all([
+            axiosInstance.get(`http://localhost:8000/api/v1/space-expenses/?structure=${structure.id}&page_size=500`),
+            axiosInstance.get(`http://localhost:8000/api/v1/space-expenses/?location=${structure.location}&page_size=500`),
+            axiosInstance.get(`http://localhost:8000/api/v1/space-rentals/?page_size=500`),
+        ]).then(([expStruct, expLoc, rentals]) => {
+            const structExp = Array.isArray(expStruct.data) ? expStruct.data : (expStruct.data.results || []);
+            const locExp   = Array.isArray(expLoc.data)    ? expLoc.data    : (expLoc.data.results    || []);
+            const allRentals = Array.isArray(rentals.data)   ? rentals.data   : (rentals.data.results   || []);
+            const faceIds = (structure.faces || []).map((f: any) => f.id);
+            const structRentals = allRentals.filter((r: any) => faceIds.includes(r.face));
+            setPlData({ structExp, locExp, structRentals });
+        }).catch(() => setPlData(null)).finally(() => setLoadingPL(false));
+    }, [structure?.id]);
+
     if (!structure) return null;
 
     const av = structure.availability;
@@ -446,12 +1040,34 @@ function StructureDetailModal({
     };
     const rentalStatus = getRentalStatus();
 
+    // Lógica de disponibilidad
+    const isAvailable = av?.type === 'led' ? (av.pct > 0) : (av?.available > 0);
+
+    const handleReserve = () => {
+        let faceIdToReserve = null;
+        if (av?.type === 'faces') {
+            const freeFace = av.faces?.find((f: any) => !f.occupied);
+            if (freeFace) faceIdToReserve = freeFace.id;
+        } else if (av?.type === 'led' && av.faces?.length > 0) {
+            faceIdToReserve = av.faces[0].id;
+        } else if (structure.faces && structure.faces.length > 0) {
+            faceIdToReserve = structure.faces[0].id;
+        }
+        
+        if (faceIdToReserve) {
+            setPreselectedFaceId(faceIdToReserve);
+        }
+
+        setActiveOpsTab('reservas');
+        onClose();
+    };
+
     return (
         <Modal
             open={!!structure}
             onCancel={onClose}
             footer={null}
-            width={860}
+            width={1000}
             centered
             styles={{ body: { padding: 0 } }}
             style={{ borderRadius: 20, overflow: 'hidden' }}
@@ -459,7 +1075,7 @@ function StructureDetailModal({
             <div style={{ display: 'flex', flexDirection: 'column' }}>
 
                 {/* ── Foto banner ── */}
-                <div style={{ position: 'relative', height: 280, background: '#0f172a', overflow: 'hidden' }}>
+                <div style={{ position: 'relative', height: 320, background: '#0f172a', overflow: 'hidden' }}>
                     {structure.photo ? (
                         <img
                             src={structure.photo}
@@ -498,10 +1114,10 @@ function StructureDetailModal({
 
                     {/* Nombre en la foto */}
                     <div style={{ position: 'absolute', bottom: 16, left: 20, right: 20 }}>
-                        <div style={{ color: '#fff', fontSize: 22, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
+                        <div style={{ color: '#fff', fontSize: 24, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
                             {structure.name}
                         </div>
-                        <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, marginTop: 4 }}>
+                        <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, marginTop: 4 }}>
                             <EnvironmentOutlined style={{ marginRight: 6 }} />
                             {structure.location_name}
                             {structure.location_locality ? ` — ${structure.location_locality}` : ''}
@@ -509,172 +1125,176 @@ function StructureDetailModal({
                     </div>
                 </div>
 
-                {/* ── Cuerpo con info + mapa ── */}
-                <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: hasMap ? '1fr 1fr' : '1fr', gap: 24 }}>
+                {/* ── Tab selector ── */}
+                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                    {[
+                        { key: 'info', label: '📋 Información' },
+                        { key: 'rentabilidad', label: '📊 Rentabilidad' },
+                    ].map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            style={{
+                                padding: '14px 28px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                fontWeight: activeTab === tab.key ? 700 : 500,
+                                fontSize: 14,
+                                color: activeTab === tab.key ? '#2563eb' : '#64748b',
+                                borderBottom: activeTab === tab.key ? '2px solid #2563eb' : '2px solid transparent',
+                                transition: 'all .15s',
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
 
+                {activeTab === 'info' && (
+                <div style={{ padding: '32px 40px', display: 'grid', gridTemplateColumns: hasMap ? '1fr 1fr' : '1fr', gap: 32 }}>
                     {/* Columna izquierda: info */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-                        {/* Estado de alquiler */}
-                        <div style={{
-                            background: rentalStatus.bg,
-                            borderRadius: 14,
-                            padding: '14px 18px',
-                            border: `1px solid ${rentalStatus.color}30`,
-                        }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 6 }}>
-                                ESTADO DE ALQUILER
-                            </div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: rentalStatus.color }}>
-                                {rentalStatus.label}
-                            </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div style={{ background: rentalStatus.bg, borderRadius: 14, padding: '16px 20px', border: `1px solid ${rentalStatus.color}30` }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 6 }}>ESTADO DE ALQUILER</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: rentalStatus.color }}>{rentalStatus.label}</div>
                         </div>
-
-                        {/* Caras (si aplica) */}
                         {av?.type === 'faces' && av.faces?.length > 0 && (
-                            <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 10 }}>
-                                    CARAS DE EXHIBICIÓN
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 20px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 12 }}>CARAS DE EXHIBICIÓN</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                     {av.faces.map((f: any) => (
-                                        <div key={f.id} style={{
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                            padding: '6px 10px',
-                                            background: f.occupied ? '#fef2f2' : '#ecfdf5',
-                                            borderRadius: 8,
-                                        }}>
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.name}</span>
-                                            <span style={{
-                                                display: 'flex', alignItems: 'center', gap: 4,
-                                                fontSize: 11, fontWeight: 700,
-                                                color: f.occupied ? '#ef4444' : '#10b981',
-                                            }}>
-                                                {f.occupied
-                                                    ? <><CloseCircleOutlined /> ALQUILADA</>
-                                                    : <><CheckCircleOutlined /> DISPONIBLE</>
-                                                }
+                                        <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: f.occupied ? '#fef2f2' : '#ecfdf5', borderRadius: 8 }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{f.name}</span>
+                                                {f.occupied && f.end_date && (
+                                                    <span style={{ fontSize: 11, color: '#b91c1c' }}><CalendarOutlined style={{ marginRight: 4 }} />Hasta: {dayjs(f.end_date).format('DD/MM/YYYY')}</span>
+                                                )}
+                                            </div>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: f.occupied ? '#ef4444' : '#10b981' }}>
+                                                {f.occupied ? <><CloseCircleOutlined /> ALQUILADA</> : <><CheckCircleOutlined /> DISPONIBLE</>}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
-
-                        {/* LED info */}
                         {av?.type === 'led' && (
-                            <div style={{ background: '#fffbeb', borderRadius: 14, padding: '14px 18px', border: '1px solid #fde68a' }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: 1, marginBottom: 8 }}>
-                                    ⚡ PANTALLA LED
-                                </div>
+                            <div style={{ background: '#fffbeb', borderRadius: 14, padding: '16px 20px', border: '1px solid #fde68a' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', letterSpacing: 1, marginBottom: 8 }}>⚡ PANTALLA LED</div>
                                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: 11, color: '#92400e' }}>Horas operativas</div>
-                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{av.operating_hours}hs/día</div>
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: 11, color: '#92400e' }}>Libre por día</div>
-                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{(av.available_day / 60).toFixed(0)} min</div>
-                                    </div>
+                                    <div style={{ flex: 1 }}><div style={{ fontSize: 11, color: '#92400e' }}>Horas operativas</div><div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{av.operating_hours}hs/día</div></div>
+                                    <div style={{ flex: 1 }}><div style={{ fontSize: 11, color: '#92400e' }}>Libre por día</div><div style={{ fontSize: 16, fontWeight: 700, color: '#78350f' }}>{(av.available_day / 60).toFixed(0)} min</div></div>
                                 </div>
                                 <div style={{ background: '#fef3c7', borderRadius: 6, height: 8, marginTop: 10, overflow: 'hidden' }}>
-                                    <div style={{ width: `${av.pct}%`, height: '100%', background: av.pct > 50 ? '#10b981' : av.pct > 0 ? '#f59e0b' : '#ef4444', borderRadius: 6, transition: 'width .3s' }} />
+                                    <div style={{ width: `${av.pct}%`, height: '100%', background: av.pct > 50 ? '#10b981' : av.pct > 0 ? '#f59e0b' : '#ef4444', borderRadius: 6 }} />
                                 </div>
                                 <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>{av.pct}% disponible</Text>
                             </div>
                         )}
-
-                        {/* Datos del cartel */}
-                        <div style={{ background: '#f8fafc', borderRadius: 14, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 10 }}>
-                                DATOS DE LA ESTRUCTURA
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {structure.dimensions && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: 13, color: '#64748b' }}>Dimensiones</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{structure.dimensions}</span>
-                                    </div>
-                                )}
-                                {structure.installation_date && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: 13, color: '#64748b' }}><CalendarOutlined /> Instalación</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{dayjs(structure.installation_date).format('DD/MM/YYYY')}</span>
-                                    </div>
-                                )}
-                                {structure.location_address && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                                        <span style={{ fontSize: 13, color: '#64748b', whiteSpace: 'nowrap' }}><EnvironmentOutlined /> Dirección</span>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', textAlign: 'right' }}>{structure.location_address}</span>
-                                    </div>
-                                )}
-                                {hasMap && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: 13, color: '#64748b' }}>Coordenadas</span>
-                                        <a
-                                            href={`https://maps.google.com/?q=${lat},${lon}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}
-                                        >
-                                            Ver en Google Maps ↗
-                                        </a>
-                                    </div>
-                                )}
+                        <div style={{ background: '#f8fafc', borderRadius: 14, padding: '16px 20px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1, marginBottom: 12 }}>DATOS DE LA ESTRUCTURA</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {structure.dimensions && (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13, color: '#64748b' }}>Dimensiones</span><span style={{ fontSize: 13, fontWeight: 600 }}>{structure.dimensions}</span></div>)}
+                                {structure.installation_date && (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13, color: '#64748b' }}><CalendarOutlined /> Instalación</span><span style={{ fontSize: 13, fontWeight: 600 }}>{dayjs(structure.installation_date).format('DD/MM/YYYY')}</span></div>)}
+                                {structure.location_address && (<div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontSize: 13, color: '#64748b', whiteSpace: 'nowrap' }}><EnvironmentOutlined /> Dirección</span><span style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>{structure.location_address}</span></div>)}
+                                {hasMap && (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontSize: 13, color: '#64748b' }}>Coordenadas</span><a href={`https://maps.google.com/?q=${lat},${lon}`} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}>Ver en Google Maps ↗</a></div>)}
                             </div>
                         </div>
                     </div>
-
-                    {/* Columna derecha: mapa */}
-                    {hasMap && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>
-                                UBICACIÓN EN MAPA
-                            </div>
-                            <div style={{
-                                borderRadius: 14,
-                                overflow: 'hidden',
-                                border: '1px solid #e2e8f0',
-                                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                                flex: 1,
-                                minHeight: 260,
-                            }}>
-                                <iframe
-                                    width="100%"
-                                    height="100%"
-                                    style={{ border: 0, display: 'block', minHeight: 260 }}
-                                    loading="lazy"
-                                    allowFullScreen
-                                    src={`https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`}
-                                />
-                            </div>
-                            <a
-                                href={`https://maps.google.com/?q=${lat},${lon}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                    display: 'block', textAlign: 'center',
-                                    padding: '8px 0',
-                                    borderRadius: 10,
-                                    background: '#2563eb',
-                                    color: '#fff',
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    textDecoration: 'none',
-                                }}
-                            >
-                                <EnvironmentOutlined style={{ marginRight: 6 }} />
-                                Abrir en Google Maps
-                            </a>
+                    {/* Columna derecha: mapa + reserva */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {hasMap && (
+                            <>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: 1 }}>UBICACIÓN EN MAPA</div>
+                                <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', flex: 1, minHeight: 280 }}>
+                                    <iframe width="100%" height="100%" style={{ border: 0, display: 'block', minHeight: 280 }} loading="lazy" allowFullScreen src={`https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`} />
+                                </div>
+                            </>
+                        )}
+                        <div style={{ marginTop: 'auto' }}>
+                            {isAvailable ? (
+                                <Button type="primary" icon={<CalendarOutlined />} onClick={handleReserve} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '48px', borderRadius: 12, background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 15, boxShadow: '0 4px 15px rgba(37,99,235,0.3)' }}>
+                                    Realizar Reserva
+                                </Button>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#fef2f2', border: '1px solid #fee2e2', padding: '16px', borderRadius: 14, textAlign: 'center' }}>
+                                    <Text strong style={{ color: '#991b1b', fontSize: 14 }}>⚠️ Sin caras disponibles</Text>
+                                    <Text style={{ fontSize: 13, color: '#dc2626' }}>Próxima fecha de liberación:<br /><strong>{av?.end_date ? dayjs(av.end_date).format('DD/MM/YYYY') : 'No especificada'}</strong></Text>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
+                )}
+
+                {activeTab === 'rentabilidad' && (
+                <div style={{ padding: '32px 40px' }}>
+                    {loadingPL ? (
+                        <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>
+                    ) : !plData ? (
+                        <Empty description="No se pudieron cargar los datos financieros" />
+                    ) : (() => {
+                        const ingresos = plData.structRentals.reduce((s: number, r: any) => s + Number(r.price || 0), 0);
+                        const costosEstructura = plData.structExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+                        const costosTerreno = plData.locExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+                        const costosTotales = costosEstructura + costosTerreno;
+                        const resultado = ingresos - costosTotales;
+                        const margen = ingresos > 0 ? Math.round((resultado / ingresos) * 100) : 0;
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                {/* KPIs */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+                                    {[
+                                        { label: 'Ingresos Totales', value: `$${ingresos.toLocaleString('es-AR')}`, color: '#10b981', bg: '#ecfdf5', icon: '💰' },
+                                        { label: 'Costos Terreno', value: `$${costosTerreno.toLocaleString('es-AR')}`, color: '#ef4444', bg: '#fef2f2', icon: '🏗️' },
+                                        { label: 'Costos Estructura', value: `$${costosEstructura.toLocaleString('es-AR')}`, color: '#f59e0b', bg: '#fffbeb', icon: '🔧' },
+                                        { label: resultado >= 0 ? 'Ganancia Neta' : 'Pérdida Neta', value: `$${Math.abs(resultado).toLocaleString('es-AR')}`, color: resultado >= 0 ? '#2563eb' : '#dc2626', bg: resultado >= 0 ? '#eff6ff' : '#fef2f2', icon: resultado >= 0 ? '📈' : '📉' },
+                                    ].map(kpi => (
+                                        <div key={kpi.label} style={{ background: kpi.bg, borderRadius: 16, padding: '20px 18px', border: `1px solid ${kpi.color}20` }}>
+                                            <div style={{ fontSize: 20, marginBottom: 6 }}>{kpi.icon}</div>
+                                            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600, marginBottom: 4 }}>{kpi.label.toUpperCase()}</div>
+                                            <div style={{ fontSize: 22, fontWeight: 800, color: kpi.color }}>{kpi.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Barra de margen */}
+                                <div style={{ background: '#f8fafc', borderRadius: 14, padding: '20px 24px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                                        <Text strong>Margen de Rentabilidad</Text>
+                                        <Text strong style={{ color: margen >= 0 ? '#10b981' : '#ef4444', fontSize: 18 }}>{margen}%</Text>
+                                    </div>
+                                    <div style={{ background: '#e2e8f0', borderRadius: 8, height: 12, overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.min(Math.abs(margen), 100)}%`, height: '100%', background: margen >= 50 ? '#10b981' : margen >= 20 ? '#f59e0b' : '#ef4444', borderRadius: 8, transition: 'width .5s' }} />
+                                    </div>
+                                </div>
+
+                                {/* Detalle por campañas */}
+                                {plData.structRentals.length > 0 && (
+                                    <div>
+                                        <Text strong style={{ display: 'block', marginBottom: 12 }}>Campañas / Alquileres ({plData.structRentals.length})</Text>
+                                        <Table dataSource={plData.structRentals} rowKey="id" size="small" pagination={{ pageSize: 4 }} className="premium-table">
+                                            <Table.Column dataIndex="client_name" title="Cliente" render={(v: string) => v || '—'} />
+                                            <Table.Column dataIndex="campaign_name" title="Campaña" render={(v: string) => v ? <Tag color="orange">{v}</Tag> : '—'} />
+                                            <Table.Column title="Período" render={(_: any, r: any) => `${dayjs(r.start_date).format('DD/MM/YY')} → ${dayjs(r.end_date).format('DD/MM/YY')}`} />
+                                            <Table.Column dataIndex="price" title="Precio" render={(v: number) => <Text strong style={{ color: '#10b981' }}>${Number(v).toLocaleString('es-AR')}</Text>} />
+                                        </Table>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
+                </div>
+                )}
             </div>
         </Modal>
     );
 }
 
-function StructuresTab() {
+
+function StructuresTab({ setActiveOpsTab, setPreselectedFaceId }: { setActiveOpsTab: (tab: any) => void, setPreselectedFaceId: (id: any) => void }) {
+
 
     const { result: structuresResult, query: structuresQuery } = useList({
         resource: "structures",
@@ -686,6 +1306,44 @@ function StructuresTab() {
     const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
     const [modalId, setModalId] = React.useState<any>(null);
     const [previewStructure, setPreviewStructure] = React.useState<any>(null);
+
+    // ── Gastos de estructura ──
+    const [expensesStructure, setExpensesStructure] = React.useState<any>(null);
+    const [structureExpenses, setStructureExpenses] = React.useState<any[]>([]);
+    const [loadingStructureExpenses, setLoadingStructureExpenses] = React.useState(false);
+    const [structExpFilterType, setStructExpFilterType] = React.useState<string | undefined>(undefined);
+    const [structExpFilterStart, setStructExpFilterStart] = React.useState<string | undefined>(undefined);
+    const [structExpFilterEnd, setStructExpFilterEnd] = React.useState<string | undefined>(undefined);
+
+    const fetchStructureExpenses = useCallback(async (structureId: number) => {
+        setLoadingStructureExpenses(true);
+        try {
+            const res = await axiosInstance.get(
+                `http://localhost:8000/api/v1/space-expenses/?structure=${structureId}&page_size=500`
+            );
+            const data = res.data;
+            setStructureExpenses(Array.isArray(data) ? data : (data.results || data.data || []));
+        } catch {
+            setStructureExpenses([]);
+        } finally {
+            setLoadingStructureExpenses(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        if (expensesStructure?.id) fetchStructureExpenses(Number(expensesStructure.id));
+        else setStructureExpenses([]);
+    }, [expensesStructure, fetchStructureExpenses]);
+
+    const { modalProps: structExpModalProps, formProps: structExpFormConfig, show: showStructExpForm } = useModalForm({
+        resource: "space-expenses",
+        action: "create",
+        warnWhenUnsavedChanges: false,
+        successNotification: () => {
+            if (expensesStructure?.id) fetchStructureExpenses(Number(expensesStructure.id));
+            return { message: "Gasto registrado exitosamente", type: "success" };
+        }
+    });
 
     const { modalProps, formProps, show } = useModalForm({
         resource: "structures",
@@ -834,7 +1492,7 @@ function StructuresTab() {
                                     </div>
                                 )}
 
-                                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                                     <Button
                                         type="text"
                                         size="small"
@@ -844,14 +1502,24 @@ function StructuresTab() {
                                     >
                                         Ver detalle
                                     </Button>
-                                    <Button
-                                        type="dashed"
-                                        size="small"
-                                        icon={<EditOutlined />}
-                                        onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }}
-                                    >
-                                        Editar
-                                    </Button>
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <Button
+                                            size="small"
+                                            icon={<DollarOutlined />}
+                                            onClick={(e) => { e.stopPropagation(); setExpensesStructure(record); }}
+                                            style={{ color: '#059669', borderColor: '#059669', borderRadius: 8 }}
+                                        >
+                                            Gastos
+                                        </Button>
+                                        <Button
+                                            type="dashed"
+                                            size="small"
+                                            icon={<EditOutlined />}
+                                            onClick={() => { setModalAction("edit"); setModalId(record.id); setTimeout(() => show(), 0); }}
+                                        >
+                                            Editar
+                                        </Button>
+                                    </div>
                                 </div>
                             </Card>
                         </Col>
@@ -865,7 +1533,208 @@ function StructuresTab() {
                 onClose={() => setPreviewStructure(null)}
                 typeColors={TYPE_COLORS}
                 typeLabels={TYPE_LABELS}
+                setActiveOpsTab={setActiveOpsTab}
+                setPreselectedFaceId={setPreselectedFaceId}
             />
+
+            {/* ── Modal de Gastos de Estructura ── */}
+            <Modal
+                open={!!expensesStructure}
+                onCancel={() => setExpensesStructure(null)}
+                footer={null}
+                width={1000}
+                centered
+                styles={{ body: { padding: 24 } }}
+                style={{ borderRadius: 20 }}
+                title={<Title level={4} style={{ margin: 0, color: '#7c3aed' }}><DollarOutlined /> Gastos de Estructura: {expensesStructure?.name}</Title>}
+            >
+                {expensesStructure && (() => {
+                    const filteredStructExp = structureExpenses.filter((e: any) => {
+                        const matchesType = !structExpFilterType || e.expense_type === structExpFilterType;
+                        const matchesStart = !structExpFilterStart || e.date >= structExpFilterStart;
+                        const matchesEnd = !structExpFilterEnd || e.date <= structExpFilterEnd;
+                        return matchesType && matchesStart && matchesEnd;
+                    });
+                    const EXPENSE_LABELS: Record<string, string> = { instalacion: 'Instalación', mantenimiento: 'Mantenimiento', reparacion: 'Reparación', seguro: 'Seguro', impuesto: 'Impuesto', otro: 'Otro' };
+                    const EXPENSE_COLORS: Record<string, string> = { instalacion: 'purple', mantenimiento: 'blue', reparacion: 'volcano', seguro: 'cyan', impuesto: 'orange', otro: 'default' };
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                            {/* Info del cartel */}
+                            <div style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', borderRadius: 12, padding: '12px 20px', display: 'flex', gap: 24, alignItems: 'center' }}>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>TERRENO</Text>
+                                    <div style={{ fontWeight: 700 }}>{expensesStructure.location_name || '—'}</div>
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>TIPO</Text>
+                                    <div style={{ fontWeight: 700 }}>{expensesStructure.type?.toUpperCase() || '—'}</div>
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ fontSize: 11 }}>DIMENSIONES</Text>
+                                    <div style={{ fontWeight: 700 }}>{expensesStructure.dimensions || '—'}</div>
+                                </div>
+                            </div>
+
+                            {/* Filtros */}
+                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', background: '#f8fafc', padding: '16px 20px', borderRadius: 12, alignItems: 'center' }}>
+                                <div style={{ minWidth: 200 }}>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Filtrar por Tipo</Text>
+                                    <Select
+                                        allowClear
+                                        placeholder="Todos los conceptos"
+                                        value={structExpFilterType}
+                                        onChange={(v) => setStructExpFilterType(v)}
+                                        style={{ width: '100%' }}
+                                        options={[
+                                            { label: 'Instalación inicial', value: 'instalacion' },
+                                            { label: 'Mantenimiento', value: 'mantenimiento' },
+                                            { label: 'Reparación', value: 'reparacion' },
+                                            { label: 'Seguro', value: 'seguro' },
+                                            { label: 'Impuesto', value: 'impuesto' },
+                                            { label: 'Otro', value: 'otro' },
+                                        ]}
+                                    />
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Desde Fecha</Text>
+                                    <Input type="date" value={structExpFilterStart} onChange={(e) => setStructExpFilterStart(e.target.value || undefined)} style={{ width: 180 }} />
+                                </div>
+                                <div>
+                                    <Text type="secondary" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>Hasta Fecha</Text>
+                                    <Input type="date" value={structExpFilterEnd} onChange={(e) => setStructExpFilterEnd(e.target.value || undefined)} style={{ width: 180 }} />
+                                </div>
+                                <div style={{ alignSelf: 'flex-end', paddingBottom: 2 }}>
+                                    <Button type="text" danger onClick={() => { setStructExpFilterType(undefined); setStructExpFilterStart(undefined); setStructExpFilterEnd(undefined); }}>
+                                        Limpiar Filtros
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Header financiero + botones */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <Text type="secondary">Inversión total en esta estructura</Text>
+                                    <div style={{ fontSize: 24, fontWeight: 800, color: '#7c3aed' }}>
+                                        ${filteredStructExp.reduce((acc: number, cur: any) => acc + Number(cur.amount), 0).toLocaleString('es-AR')}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <Button
+                                        icon={<UploadOutlined />}
+                                        onClick={() => {
+                                            const csvContent = "data:text/csv;charset=utf-8,"
+                                                + "Fecha,Tipo,Monto,Descripcion\n"
+                                                + filteredStructExp.map((e: any) => `${e.date},${e.expense_type},${e.amount},"${e.description || ''}"`).join("\n");
+                                            const link = document.createElement("a");
+                                            link.setAttribute("href", encodeURI(csvContent));
+                                            link.setAttribute("download", `gastos_estructura_${expensesStructure.name.replace(/\s+/g, '_')}.csv`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }}
+                                    >
+                                        Exportar CSV
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        style={{ background: '#7c3aed', border: 'none' }}
+                                        onClick={() => {
+                                            showStructExpForm();
+                                            setTimeout(() => {
+                                                structExpFormConfig.form?.setFieldsValue({
+                                                    date: dayjs().format('YYYY-MM-DD'),
+                                                    expense_type: 'instalacion',
+                                                });
+                                            }, 150);
+                                        }}
+                                    >
+                                        Registrar Gasto
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Tabla */}
+                            {loadingStructureExpenses ? (
+                                <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+                            ) : filteredStructExp.length === 0 ? (
+                                <Empty description="No se han registrado gastos para esta estructura" />
+                            ) : (
+                                <Table dataSource={filteredStructExp} rowKey="id" pagination={{ pageSize: 6 }} size="small" className="premium-table">
+                                    <Table.Column dataIndex="date" title="Fecha" render={(v) => dayjs(v).format('DD/MM/YYYY')} />
+                                    <Table.Column dataIndex="expense_type" title="Tipo" render={(v: string) => (
+                                        <Tag color={EXPENSE_COLORS[v] || 'default'}>{EXPENSE_LABELS[v] || v}</Tag>
+                                    )} />
+                                    <Table.Column dataIndex="amount" title="Monto" render={(v) => `$${Number(v).toLocaleString('es-AR')}`} />
+                                    <Table.Column dataIndex="description" title="Descripción" ellipsis />
+                                </Table>
+                            )}
+                        </div>
+                    );
+                })()}
+            </Modal>
+
+            <Modal 
+                {...structExpModalProps} 
+                title={<b>Registrar Gasto de Estructura</b>} 
+                width={600} 
+                centered 
+                zIndex={1100}
+                onCancel={() => {
+                    if (structExpFormConfig.form?.isFieldsTouched()) {
+                        Modal.confirm({
+                            title: '¿Cerrar formulario?',
+                            icon: <WarningOutlined style={{ color: '#faad14' }} />,
+                            content: 'Tenés cambios sin guardar que se van a perder.',
+                            okText: 'Sí, salir',
+                            cancelText: 'No, quedarme',
+                            okButtonProps: { danger: true },
+                            onOk: () => {
+                                (structExpModalProps.onCancel as any)?.();
+                            }
+                        });
+                    } else {
+                        (structExpModalProps.onCancel as any)?.();
+                    }
+                }}
+            >
+                <Form
+                    {...structExpFormConfig}
+                    layout="vertical"
+                    onFinish={(values) => {
+                        (structExpFormConfig.onFinish as any)?.({
+                            ...values,
+                            structure: expensesStructure?.id ? Number(expensesStructure.id) : undefined,
+                        });
+                    }}
+                >
+                    <Form.Item label="Tipo de Gasto" name="expense_type" rules={[{ required: true }]}>
+                        <Select options={[
+                            { label: 'Instalación inicial', value: 'instalacion' },
+                            { label: 'Mantenimiento', value: 'mantenimiento' },
+                            { label: 'Reparación', value: 'reparacion' },
+                            { label: 'Seguro', value: 'seguro' },
+                            { label: 'Impuesto', value: 'impuesto' },
+                            { label: 'Otro', value: 'otro' },
+                        ]} />
+                    </Form.Item>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item label="Monto" name="amount" rules={[{ required: true }]}>
+                                <InputNumber prefix="$" style={{ width: '100%' }} min={0} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item label="Fecha" name="date" rules={[{ required: true }]}>
+                                <Input type="date" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Form.Item label="Descripción / Observación" name="description">
+                        <Input.TextArea rows={3} placeholder="Ej: Instalación inicial monoposte, pintura estructural..." />
+                    </Form.Item>
+                </Form>
+            </Modal>
 
             <Modal {...modalProps} title={<b>{modalAction === "create" ? "Registrar Estructura" : "Editar Estructura"}</b>} width={700} centered>
                 <Form {...formProps} layout="vertical" onFinish={handleFormFinish}>
@@ -979,6 +1848,7 @@ function StructuresTab() {
 function ContractsTab() {
     const { tableProps } = useTable({ resource: "locations", syncWithLocation: false, pagination: { pageSize: 1000 } });
     const [filterStatus, setFilterStatus] = React.useState('all');
+    const [searchName, setSearchName] = React.useState('');
 
     const { modalProps, formProps, show } = useModalForm({
         resource: "locations",
@@ -992,6 +1862,11 @@ function ContractsTab() {
     };
 
     let filteredData = tableProps.dataSource || [];
+
+    if (searchName) {
+        filteredData = filteredData.filter(record => record.name?.toLowerCase().includes(searchName.toLowerCase()));
+    }
+
     if (filterStatus !== 'all') {
         filteredData = filteredData.filter(record => {
             if (!record.contract_end_date) return filterStatus === 'no_contract';
@@ -1005,21 +1880,32 @@ function ContractsTab() {
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>Vencimientos de Contratos (Terrenos)</Title>
-                <Select
-                    value={filterStatus}
-                    onChange={setFilterStatus}
-                    size="large"
-                    style={{ width: 220 }}
-                    options={[
-                        { label: 'Todos los Terrenos', value: 'all' },
-                        { label: 'Vencidos', value: 'expired' },
-                        { label: 'Vencen en menos de 30 días', value: 'warning' },
-                        { label: 'Contrato Vigente (>30 días)', value: 'ok' },
-                        { label: 'Sin Contrato', value: 'no_contract' },
-                    ]}
-                />
+                <div style={{ display: 'flex', gap: 16 }}>
+                    <Input
+                        placeholder="Buscar por nombre..."
+                        prefix={<SearchOutlined />}
+                        value={searchName}
+                        onChange={(e) => setSearchName(e.target.value)}
+                        style={{ width: 240, borderRadius: 10 }}
+                        size="large"
+                        allowClear
+                    />
+                    <Select
+                        value={filterStatus}
+                        onChange={setFilterStatus}
+                        size="large"
+                        style={{ width: 240 }}
+                        options={[
+                            { label: 'Todos los Terrenos', value: 'all' },
+                            { label: 'Vencidos', value: 'expired' },
+                            { label: 'Vencen en menos de 30 días', value: 'warning' },
+                            { label: 'Contrato Vigente (>30 días)', value: 'ok' },
+                            { label: 'Sin Contrato', value: 'no_contract' },
+                        ]}
+                    />
+                </div>
             </div>
             <Table {...tableProps} dataSource={filteredData} rowKey="id" className="premium-table">
                 <Table.Column dataIndex="name" title="Terreno" render={(val) => <Text strong>{val}</Text>} />
@@ -1061,6 +1947,7 @@ function LandlordsTab() {
     const { tableProps } = useTable({ resource: "landlords", syncWithLocation: false });
     const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
     const [modalId, setModalId] = React.useState<any>(null);
+    const [searchQuery, setSearchQuery] = React.useState('');
 
     const { modalProps, formProps, show } = useModalForm({
         resource: "landlords",
@@ -1070,20 +1957,41 @@ function LandlordsTab() {
         successNotification: () => ({ message: modalAction === "create" ? "Propietario creado" : "Propietario actualizado", type: "success" })
     });
 
+    let filteredLandlords = tableProps.dataSource || [];
+    if (searchQuery) {
+        filteredLandlords = filteredLandlords.filter((l: any) => {
+            const matchName = l.name?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchEmail = l.email?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchPhone = l.phone?.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchName || matchEmail || matchPhone;
+        });
+    }
+
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                 <Title level={4} style={{ margin: 0 }}>Cartera de Propietarios</Title>
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => { setModalAction("create"); setModalId(null); show(); }}
-                    style={{ borderRadius: "10px", height: "40px", padding: "0 24px", fontWeight: 700, background: "#2563eb", boxShadow: "0 8px 15px rgba(37,99,235,0.2)", border: "none" }}
-                >
-                    Nuevo Propietario
-                </Button>
+                <div style={{ display: 'flex', gap: 16 }}>
+                    <Input
+                        placeholder="Buscar por nombre, mail o tel..."
+                        prefix={<SearchOutlined />}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{ width: 280, borderRadius: 10 }}
+                        size="large"
+                        allowClear
+                    />
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => { setModalAction("create"); setModalId(null); show(); }}
+                        style={{ borderRadius: "10px", height: "40px", padding: "0 24px", fontWeight: 700, background: "#2563eb", boxShadow: "0 8px 15px rgba(37,99,235,0.2)", border: "none" }}
+                    >
+                        Nuevo Propietario
+                    </Button>
+                </div>
             </div>
-            <Table {...tableProps} rowKey="id" className="premium-table">
+            <Table {...tableProps} dataSource={filteredLandlords} rowKey="id" className="premium-table">
                 <Table.Column dataIndex="name" title="Nombre / Razón Social" render={(val) => <Text strong>{val}</Text>} />
                 <Table.Column dataIndex="email" title="Email" />
                 <Table.Column dataIndex="phone" title="Teléfono" />
@@ -1106,7 +2014,7 @@ function LandlordsTab() {
     );
 }
 
-function RentalsTab() {
+function RentalsTab({ preselectedFaceId, setPreselectedFaceId }: { preselectedFaceId: any, setPreselectedFaceId: (id: any) => void }) {
     const { tableProps } = useTable({ resource: "space-rentals", syncWithLocation: false });
     const [modalAction, setModalAction] = React.useState<"create" | "edit">("create");
     const [modalId, setModalId] = React.useState<any>(null);
@@ -1118,6 +2026,18 @@ function RentalsTab() {
         warnWhenUnsavedChanges: false,
         successNotification: () => ({ message: modalAction === "create" ? "Reserva creada" : "Reserva actualizada", type: "success" })
     });
+
+    React.useEffect(() => {
+        if (preselectedFaceId) {
+            setModalAction("create");
+            setModalId(null);
+            show();
+            setTimeout(() => {
+                formProps.form?.setFieldsValue({ face: preselectedFaceId });
+            }, 300);
+            setPreselectedFaceId(null);
+        }
+    }, [preselectedFaceId]);
 
     const { options: faceOptions } = useSelect({
         resource: "structure-faces",
@@ -1414,8 +2334,8 @@ function GastosTab() {
     const { options: structureOptions } = useSelect({ resource: "structures", optionLabel: "name", optionValue: "id", pagination: { pageSize: 200 } });
 
     // Datos completos de terrenos para auto-completar monto de alquiler
-    const { data: locationsListData } = useList({ resource: "locations", pagination: { pageSize: 200 } });
-    const allLocations: any[] = (locationsListData as any)?.data || [];
+    const { result: locationsListResult } = useList({ resource: "locations", pagination: { pageSize: 200 } });
+    const allLocations: any[] = locationsListResult?.data || [];
 
     // Observamos los campos del form para auto-completar
     const watchedExpType = Form.useWatch('expense_type', formProps.form);

@@ -60,7 +60,6 @@ class StructureSerializer(serializers.ModelSerializer):
             sec_per_hour = obj.led_total_seconds_per_hour or 3600
             total_day = sec_per_hour * op_hours
 
-            # Cada slot aporta según su franja horaria vs las horas operativas
             sold_day = 0
             for s in active_slots:
                 if s.hour_from is not None and s.hour_to is not None:
@@ -72,6 +71,12 @@ class StructureSerializer(serializers.ModelSerializer):
             available_day = max(0, total_day - sold_day)
             pct_free = round(available_day / total_day * 100) if total_day else 0
 
+            max_end_date = None
+            if active_slots:
+                end_dates = [s.end_date for s in active_slots if s.end_date]
+                if end_dates:
+                    max_end_date = max(end_dates).isoformat()
+
             return {
                 'type': 'led',
                 'operating_hours': op_hours,
@@ -80,15 +85,29 @@ class StructureSerializer(serializers.ModelSerializer):
                 'sold_day': round(sold_day, 2),
                 'available_day': round(available_day, 2),
                 'pct': pct_free,
+                'end_date': max_end_date,
             }
         faces = [f for f in obj.faces.all() if f.is_active]
         face_details = []
         for f in faces:
-            is_occupied = any(
-                r.status in ('activo', 'reservado') and r.start_date <= today <= r.end_date
-                for r in f.rentals.all()
-            )
-            face_details.append({'id': f.id, 'name': f.name, 'occupied': is_occupied})
+            active_rentals = [
+                r for r in f.rentals.all()
+                if r.status in ('activo', 'reservado') and r.start_date <= today <= r.end_date
+            ]
+            is_occupied = len(active_rentals) > 0
+            face_end_date = None
+            if is_occupied:
+                end_dates = [r.end_date for r in active_rentals if r.end_date]
+                if end_dates:
+                    face_end_date = max(end_dates).isoformat()
+            
+            face_details.append({
+                'id': f.id, 
+                'name': f.name, 
+                'occupied': is_occupied,
+                'end_date': face_end_date
+            })
+
         occupied = sum(1 for f in face_details if f['occupied'])
         total = len(face_details)
         if total == 0:
@@ -99,6 +118,14 @@ class StructureSerializer(serializers.ModelSerializer):
             status = 'parcial'
         else:
             status = 'ocupado'
+            
+        # Calcular fecha máxima de finalización global de caras ocupadas
+        max_face_end_date = None
+        if occupied == total and total > 0:
+            all_end_dates = [f['end_date'] for f in face_details if f['end_date']]
+            if all_end_dates:
+                max_face_end_date = max(all_end_dates)
+
         return {
             'type': 'faces',
             'total': total,
@@ -106,6 +133,7 @@ class StructureSerializer(serializers.ModelSerializer):
             'available': total - occupied,
             'status': status,
             'faces': face_details,
+            'end_date': max_face_end_date,
         }
 
     class Meta:
