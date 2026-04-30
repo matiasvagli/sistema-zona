@@ -24,7 +24,14 @@ class WorkOrderNotificationViewSet(viewsets.ModelViewSet):
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
-    queryset = WorkOrder.objects.all()
+    queryset = WorkOrder.objects.select_related(
+        'client', 'structure', 'campaign', 'budget'
+    ).prefetch_related(
+        'tasks__sector',
+        'tasks__assigned_to',
+        'tasks__reservations__product',
+        'work_order_photos'
+    ).all()
     serializer_class = WorkOrderSerializer
     pagination_class = None
 

@@ -42,7 +42,14 @@ class Campaign(models.Model):
     def generate_payments(self):
         if self.status in ('presupuesto', 'borrador'):
             return
+            
+        # Obtenemos los períodos que ya están pagados para no duplicarlos ni borrarlos
+        paid_periods = set(self.payments.filter(status='pagado').values_list('period', flat=True))
+        
+        # Borramos solo los pendientes/vencidos
         self.payments.filter(status__in=('pendiente', 'vencido')).delete()
+        
+        new_payments = []
         if self.billing_type == 'mensual':
             months = []
             y, m = self.start_date.year, self.start_date.month
@@ -52,16 +59,20 @@ class Campaign(models.Model):
                 m += 1
                 if m > 12:
                     m, y = 1, y + 1
+            
             n = len(months)
             amount = round(float(self.budget_total) / n, 2) if n else float(self.budget_total)
+            
             for period in months:
-                CampaignPayment.objects.get_or_create(campaign=self, period=period, defaults={'amount': amount})
+                if period not in paid_periods:
+                    new_payments.append(CampaignPayment(campaign=self, period=period, amount=amount))
         else:
-            CampaignPayment.objects.get_or_create(
-                campaign=self,
-                period=self.start_date.replace(day=1),
-                defaults={'amount': self.budget_total},
-            )
+            period = self.start_date.replace(day=1)
+            if period not in paid_periods:
+                new_payments.append(CampaignPayment(campaign=self, period=period, amount=self.budget_total))
+        
+        if new_payments:
+            CampaignPayment.objects.bulk_create(new_payments)
 
 
 class CampaignSpace(models.Model):

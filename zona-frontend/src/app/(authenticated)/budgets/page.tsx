@@ -11,7 +11,7 @@ import {
   Form, InputNumber, Select, Row, Col, Modal, Divider,
 } from "antd";
 import {
-  PlusOutlined, EyeOutlined,
+  PlusOutlined, EyeOutlined, EditOutlined,
   FileTextOutlined, LinkOutlined, SearchOutlined,
   ClearOutlined, FundOutlined, DeleteOutlined,
 } from "@ant-design/icons";
@@ -380,6 +380,8 @@ function CampaignVPTab() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [form] = Form.useForm();
+  const [modalAction, setModalAction] = useState<"create" | "edit">("create");
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [modalStartDate, setModalStartDate] = useState("");
   const [modalEndDate, setModalEndDate] = useState("");
 
@@ -449,6 +451,10 @@ function CampaignVPTab() {
         duration: 6,
       });
       invalidate({ resource: "campaigns", invalidates: ["list"] });
+      // Redirigir a la OT creada
+      if (data.work_order_id) {
+        router.push(`/work-orders/${data.work_order_id}`);
+      }
     } catch (err: any) {
       notification.error({ message: err?.response?.data?.detail || "Error al aprobar la campaña" });
     } finally {
@@ -458,12 +464,38 @@ function CampaignVPTab() {
 
   const closeCreateModal = () => {
     setCreateModalOpen(false);
+    setEditingId(null);
+    setModalAction("create");
     form.resetFields();
     setModalStartDate("");
     setModalEndDate("");
   };
 
-  const handleCreate = async () => {
+  const handleEdit = (record: any) => {
+    setModalAction("edit");
+    setEditingId(record.id);
+    setModalStartDate(record.start_date || "");
+    setModalEndDate(record.end_date || "");
+    
+    // Preparar los assignments si existen
+    const space_assignments = (record.spaces || []).map((s: any) => ({
+      face_id: s.face,
+      price: s.rental_price,
+    }));
+
+    form.setFieldsValue({
+      name: record.name,
+      client: record.client,
+      billing_type: record.billing_type,
+      start_date: record.start_date,
+      end_date: record.end_date,
+      notes: record.notes,
+      space_assignments: space_assignments,
+    });
+    setCreateModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
     let values: any;
     try { values = await form.validateFields(); } catch { return; }
     const { space_assignments, ...campaignValues } = values;
@@ -471,37 +503,47 @@ function CampaignVPTab() {
     const totalFromSpaces = assignments.reduce((sum: number, a: any) => sum + Number(a.price || 0), 0);
     setIsCreating(true);
     try {
-      const { data: campaignData } = await axiosInstance.post(`${API}/campaigns/`, {
-        ...campaignValues,
-        status: "presupuesto",
-        budget_total: totalFromSpaces,
-      });
-      const campaignId = campaignData.id;
-      for (const assignment of assignments) {
-        const { data: rentalData } = await axiosInstance.post(`${API}/space-rentals/`, {
-          face: assignment.face_id,
-          client: campaignValues.client,
-          campaign: campaignId,
-          start_date: campaignValues.start_date,
-          end_date: campaignValues.end_date,
-          price: assignment.price || 0,
-          status: "reservado",
+      if (modalAction === "create") {
+        const { data: campaignData } = await axiosInstance.post(`${API}/campaigns/`, {
+          ...campaignValues,
+          status: "presupuesto",
+          budget_total: totalFromSpaces,
         });
-        await axiosInstance.post(`${API}/campaign-spaces/`, {
-          campaign: campaignId,
-          space_rental: rentalData.id,
+        const campaignId = campaignData.id;
+        for (const assignment of assignments) {
+          const { data: rentalData } = await axiosInstance.post(`${API}/space-rentals/`, {
+            face: assignment.face_id,
+            client: campaignValues.client,
+            campaign: campaignId,
+            start_date: campaignValues.start_date,
+            end_date: campaignValues.end_date,
+            price: assignment.price || 0,
+            status: "reservado",
+          });
+          await axiosInstance.post(`${API}/campaign-spaces/`, {
+            campaign: campaignId,
+            space_rental: rentalData.id,
+          });
+        }
+        notification.success({
+          message: assignments.length > 0
+            ? `Campaña creada con ${assignments.length} espacio(s)`
+            : "Campaña creada correctamente",
         });
+      } else {
+        // Lógica de edición (PATCH)
+        await axiosInstance.patch(`${API}/campaigns/${editingId}/`, {
+          ...campaignValues,
+          budget_total: totalFromSpaces,
+        });
+        
+        notification.success({ message: "Campaña actualizada correctamente" });
       }
-      notification.success({
-        message: assignments.length > 0
-          ? `Campaña creada con ${assignments.length} espacio(s)`
-          : "Campaña creada correctamente",
-      });
       invalidate({ resource: "campaigns", invalidates: ["list"] });
       invalidate({ resource: "space-rentals", invalidates: ["list"] });
       closeCreateModal();
     } catch {
-      notification.error({ message: "Error al crear la campaña" });
+      notification.error({ message: `Error al ${modalAction === "create" ? "crear" : "actualizar"} la campaña` });
     } finally {
       setIsCreating(false);
     }
@@ -518,7 +560,7 @@ function CampaignVPTab() {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => { setModalAction("create"); setCreateModalOpen(true); }}
             style={{ borderRadius: 10, height: 40, padding: "0 20px", fontWeight: 700, background: "#0f172a" }}
           >
             Nuevo Presupuesto VP
@@ -568,6 +610,10 @@ function CampaignVPTab() {
                   </Button>
                 </Popconfirm>
               )}
+              <Tooltip title="Editar">
+                <Button size="small" icon={<EditOutlined />}
+                  onClick={() => handleEdit(record)} />
+              </Tooltip>
               <Tooltip title="Ver en Campañas">
                 <Button size="small" type="dashed" icon={<EyeOutlined />}
                   onClick={() => router.push("/campaigns")} />
@@ -580,12 +626,12 @@ function CampaignVPTab() {
       <Modal
         open={createModalOpen}
         onCancel={closeCreateModal}
-        onOk={handleCreate}
-        title={<b>Nuevo Presupuesto Vía Pública</b>}
+        onOk={handleSubmit}
+        title={<b>{modalAction === "create" ? "Nuevo Presupuesto Vía Pública" : "Editar Presupuesto Vía Pública"}</b>}
         width={700}
         centered
         okButtonProps={{ loading: isCreating }}
-        okText="Crear Campaña"
+        okText={modalAction === "create" ? "Crear Campaña" : "Guardar Cambios"}
         cancelText="Cancelar"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
