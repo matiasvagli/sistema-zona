@@ -1,6 +1,6 @@
 from datetime import date
 from rest_framework import serializers
-from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot
+from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot, LocationContract
 
 
 class LandlordSerializer(serializers.ModelSerializer):
@@ -9,8 +9,25 @@ class LandlordSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class LocationContractSerializer(serializers.ModelSerializer):
+    contract_file_url = serializers.SerializerMethodField()
+
+    def get_contract_file_url(self, obj):
+        if obj.contract_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.contract_file.url)
+            return obj.contract_file.url
+        return None
+
+    class Meta:
+        model = LocationContract
+        fields = '__all__'
+
+
 class LocationSerializer(serializers.ModelSerializer):
     landlord_name = serializers.ReadOnlyField(source='landlord.name')
+    contracts = LocationContractSerializer(many=True, read_only=True)
 
     class Meta:
         model = Location

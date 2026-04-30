@@ -21,11 +21,12 @@ export default function EmployeeDetailPage() {
   const [form] = Form.useForm();
   const isCreate = id === "create";
 
-  const { data, isLoading } = useOne({
+  const { query } = useOne({
     resource: "employees",
     id,
     queryOptions: { enabled: !isCreate },
   });
+  const isLoading = query?.isFetching || query?.isLoading;
 
   const { result: sectorsResult } = useList({
     resource: "sectors",
@@ -38,10 +39,12 @@ export default function EmployeeDetailPage() {
     pagination: { pageSize: 200 },
   });
 
-  const { mutate: update, isLoading: saving } = useUpdate();
-  const { mutate: create, isLoading: creating } = useCreate();
+  const { mutate: update, mutation: updateMutation } = useUpdate();
+  const { mutate: create, mutation: createMutation } = useCreate();
 
-  const employee = data?.data;
+  const employee = query?.data?.data;
+  const saving = updateMutation?.isPending;
+  const creating = createMutation?.isPending;
   const sectors: any[] = sectorsResult?.data || [];
   const users: any[] = usersResult?.data || [];
 

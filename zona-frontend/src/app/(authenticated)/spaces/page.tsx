@@ -1846,10 +1846,21 @@ function StructuresTab({ setActiveOpsTab, setPreselectedFaceId }: { setActiveOps
 }
 
 function ContractsTab() {
+    const invalidate = useInvalidate();
     const { tableProps } = useTable({ resource: "locations", syncWithLocation: false, pagination: { pageSize: 1000 } });
     const [filterStatus, setFilterStatus] = React.useState('all');
     const [searchName, setSearchName] = React.useState('');
 
+    // ── Modal Renovar Contrato ──
+    const [renewTarget, setRenewTarget] = React.useState<any>(null);
+    const [renewLoading, setRenewLoading] = React.useState(false);
+    const [renewForm] = Form.useForm();
+    const [renewFile, setRenewFile] = React.useState<any>(null);
+
+    // ── Modal Historial ──
+    const [historyTarget, setHistoryTarget] = React.useState<any>(null);
+
+    // ── Modal Alertas ──
     const { modalProps, formProps, show } = useModalForm({
         resource: "locations",
         action: "edit",
@@ -1859,6 +1870,39 @@ function ContractsTab() {
 
     const openAlertsModal = (record: any) => {
         show(record.id);
+    };
+
+    const handleRenew = async () => {
+        try {
+            const values = await renewForm.validateFields();
+            setRenewLoading(true);
+            const fd = new FormData();
+            fd.append('contract_start_date', values.contract_start_date);
+            fd.append('contract_end_date', values.contract_end_date);
+            fd.append('rent_amount', values.rent_amount);
+            fd.append('rent_period', values.rent_period || 'mensual');
+            if (values.notes) fd.append('notes', values.notes);
+            if (renewFile) fd.append('contract_file', renewFile);
+
+            await axiosInstance.post(
+                `http://localhost:8000/api/v1/locations/${renewTarget.id}/renew/`,
+                fd,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+            notification.success({
+                message: '¡Contrato renovado!',
+                description: `El contrato de "${renewTarget.name}" fue actualizado exitosamente.`,
+            });
+            invalidate({ resource: 'locations', invalidates: ['list'] });
+            setRenewTarget(null);
+            setRenewFile(null);
+            renewForm.resetFields();
+        } catch (err: any) {
+            if (err?.errorFields) return; // error de validación del form
+            notification.error({ message: 'Error al renovar contrato', description: err?.response?.data?.error || 'Ocurrió un error inesperado.' });
+        } finally {
+            setRenewLoading(false);
+        }
     };
 
     let filteredData = tableProps.dataSource || [];
@@ -1877,6 +1921,11 @@ function ContractsTab() {
             return true;
         });
     }
+
+    const PERIOD_LABELS: Record<string, string> = {
+        mensual: 'Mensual', bimestral: 'Bimestral',
+        semestral: 'Semestral', anual: 'Anual', por_contrato: 'Por Contrato',
+    };
 
     return (
         <div>
@@ -1910,22 +1959,215 @@ function ContractsTab() {
             <Table {...tableProps} dataSource={filteredData} rowKey="id" className="premium-table">
                 <Table.Column dataIndex="name" title="Terreno" render={(val) => <Text strong>{val}</Text>} />
                 <Table.Column dataIndex="landlord_name" title="Propietario" render={(val) => val || <Text type="secondary">N/A</Text>} />
+                <Table.Column dataIndex="contract_start_date" title="Inicio" render={(val) => val ? dayjs(val).format('DD/MM/YYYY') : <Text type="secondary">—</Text>} />
                 <Table.Column dataIndex="contract_end_date" title="Vencimiento" render={(val) => {
                     if (!val) return <Text type="secondary">Sin contrato</Text>;
                     const daysLeft = dayjs(val).diff(dayjs(), 'day');
-                    if (daysLeft < 0) return <Tag color="error">Vencido hace {-daysLeft} días</Tag>;
-                    if (daysLeft < 30) return <Tag color="warning">Vence en {daysLeft} días</Tag>;
-                    return <Tag color="success">Vence en {daysLeft} días</Tag>;
+                    if (daysLeft < 0) return <Tag color="error">Vencido hace {-daysLeft}d</Tag>;
+                    if (daysLeft < 30) return <Tag color="warning">Vence en {daysLeft}d</Tag>;
+                    return <Tag color="success">Vence en {daysLeft}d</Tag>;
                 }} />
-                <Table.Column dataIndex="rent_amount" title="Monto" render={(val) => val ? `$${val}` : '-'} />
+                <Table.Column dataIndex="rent_amount" title="Monto" render={(val, rec: any) =>
+                    val ? <span><Text strong>${Number(val).toLocaleString('es-AR')}</Text> <Text type="secondary" style={{ fontSize: 11 }}>/ {PERIOD_LABELS[rec.rent_period] || rec.rent_period}</Text></span> : <Text type="secondary">—</Text>
+                } />
                 <Table.Column dataIndex="expiration_alert_active" title="Alertas" render={(val, record: any) => (
                     val ? <Text type="success">Sí ({record.expiration_alert_days_before}d / cada {record.expiration_alert_frequency}d)</Text> : <Text type="secondary">Desactivadas</Text>
                 )} />
-                <Table.Column title="Acciones" render={(_, record: any) => (
-                    <Button type="dashed" size="small" onClick={() => openAlertsModal(record)}>Configurar Alerta</Button>
+                <Table.Column title="Acciones" width={240} render={(_, record: any) => (
+                    <Space size={6}>
+                        <Button
+                            type="primary"
+                            size="small"
+                            icon={<SwapOutlined />}
+                            onClick={() => {
+                                setRenewTarget(record);
+                                renewForm.setFieldsValue({
+                                    rent_amount: record.rent_amount,
+                                    rent_period: record.rent_period || 'mensual',
+                                    contract_start_date: record.contract_end_date
+                                        ? dayjs(record.contract_end_date).add(1, 'day').format('YYYY-MM-DD')
+                                        : dayjs().format('YYYY-MM-DD'),
+                                });
+                            }}
+                            style={{ background: '#7c3aed', border: 'none', borderRadius: 6 }}
+                        >
+                            Renovar
+                        </Button>
+                        {(record.contracts?.length > 0) && (
+                            <Button
+                                size="small"
+                                icon={<FileTextOutlined />}
+                                onClick={() => setHistoryTarget(record)}
+                                style={{ borderRadius: 6 }}
+                            >
+                                Historial ({record.contracts.length})
+                            </Button>
+                        )}
+                        <Button size="small" type="dashed" onClick={() => openAlertsModal(record)} style={{ borderRadius: 6 }}>
+                            Alertas
+                        </Button>
+                    </Space>
                 )} />
             </Table>
 
+            {/* ── Modal Renovar Contrato ── */}
+            <Modal
+                open={!!renewTarget}
+                onCancel={() => { setRenewTarget(null); setRenewFile(null); renewForm.resetFields(); }}
+                onOk={handleRenew}
+                okText="Confirmar Renovación"
+                okButtonProps={{ loading: renewLoading, style: { background: '#7c3aed', border: 'none' } }}
+                title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <SwapOutlined style={{ color: '#fff', fontSize: 16 }} />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 800, fontSize: 15 }}>Renovar Contrato</div>
+                            {renewTarget && <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>{renewTarget.name} · {renewTarget.landlord_name}</div>}
+                        </div>
+                    </div>
+                }
+                width={520}
+                centered
+            >
+                {renewTarget && (
+                    <div style={{ marginTop: 8 }}>
+                        {/* Contrato actual */}
+                        {renewTarget.contract_end_date && (
+                            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10, padding: '10px 16px', marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center' }}>
+                                <WarningOutlined style={{ color: '#d97706', fontSize: 18 }} />
+                                <div>
+                                    <Text style={{ fontSize: 12, color: '#92400e', fontWeight: 600 }}>CONTRATO VIGENTE</Text>
+                                    <div style={{ fontSize: 13, color: '#78350f' }}>
+                                        {dayjs(renewTarget.contract_start_date).format('DD/MM/YYYY')} → {dayjs(renewTarget.contract_end_date).format('DD/MM/YYYY')} · ${Number(renewTarget.rent_amount).toLocaleString('es-AR')}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        <Form form={renewForm} layout="vertical">
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item label="Nueva Fecha de Inicio" name="contract_start_date" rules={[{ required: true, message: 'Requerida' }]}>
+                                        <Input type="date" size="large" style={{ width: '100%' }} />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item label="Nueva Fecha de Vencimiento" name="contract_end_date" rules={[{ required: true, message: 'Requerida' }]}>
+                                        <Input type="date" size="large" style={{ width: '100%' }} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item label="Nuevo Monto de Alquiler" name="rent_amount" rules={[{ required: true, message: 'Requerido' }]}>
+                                        <InputNumber prefix="$" style={{ width: '100%' }} size="large" min={0} />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item label="Período de Pago" name="rent_period">
+                                        <Select size="large" options={[
+                                            { label: 'Mensual', value: 'mensual' },
+                                            { label: 'Bimestral', value: 'bimestral' },
+                                            { label: 'Semestral', value: 'semestral' },
+                                            { label: 'Anual', value: 'anual' },
+                                            { label: 'Por Contrato', value: 'por_contrato' },
+                                        ]} />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                            <Form.Item label="Archivo del Contrato (PDF)">
+                                <Upload
+                                    beforeUpload={(file) => { setRenewFile(file); return false; }}
+                                    maxCount={1}
+                                    accept=".pdf,.doc,.docx,.jpg,.png"
+                                    onRemove={() => setRenewFile(null)}
+                                >
+                                    <Button icon={<UploadOutlined />}>Adjuntar contrato</Button>
+                                </Upload>
+                            </Form.Item>
+                            <Form.Item label="Observaciones / Notas" name="notes">
+                                <Input.TextArea rows={3} placeholder="Ej: Se acordó aumento del 15% por inflación..." />
+                            </Form.Item>
+                        </Form>
+                    </div>
+                )}
+            </Modal>
+
+            {/* ── Modal Historial de Contratos ── */}
+            <Modal
+                open={!!historyTarget}
+                onCancel={() => setHistoryTarget(null)}
+                footer={<Button onClick={() => setHistoryTarget(null)}>Cerrar</Button>}
+                title={
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <FileTextOutlined style={{ fontSize: 18, color: '#2563eb' }} />
+                        <div>
+                            <div style={{ fontWeight: 800, fontSize: 15 }}>Historial de Contratos</div>
+                            {historyTarget && <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400 }}>{historyTarget.name}</div>}
+                        </div>
+                    </div>
+                }
+                width={620}
+                centered
+            >
+                {historyTarget && (historyTarget.contracts || []).length === 0 ? (
+                    <Empty description="Sin contratos históricos registrados" />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                        {(historyTarget?.contracts || []).map((c: any, i: number) => {
+                            const isCurrent = i === 0;
+                            const daysLeft = dayjs(c.contract_end_date).diff(dayjs(), 'day');
+                            return (
+                                <div key={c.id} style={{
+                                    background: isCurrent ? 'linear-gradient(135deg, #f5f3ff, #ede9fe)' : '#f8fafc',
+                                    border: `1px solid ${isCurrent ? '#c4b5fd' : '#e2e8f0'}`,
+                                    borderRadius: 12, padding: '14px 18px',
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div>
+                                            {isCurrent && <Tag color="purple" style={{ marginBottom: 6, fontWeight: 700, borderRadius: 6 }}>CONTRATO ACTUAL</Tag>}
+                                            <div style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>
+                                                {dayjs(c.contract_start_date).format('DD/MM/YYYY')} → {dayjs(c.contract_end_date).format('DD/MM/YYYY')}
+                                            </div>
+                                            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                                                <Text strong style={{ color: '#7c3aed' }}>${Number(c.rent_amount).toLocaleString('es-AR')}</Text>
+                                                {' '}<Text type="secondary">/ {PERIOD_LABELS[c.rent_period] || c.rent_period}</Text>
+                                            </div>
+                                            {c.notes && (
+                                                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                                                    📝 {c.notes}
+                                                </Text>
+                                            )}
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            {isCurrent && (
+                                                daysLeft < 0
+                                                    ? <Tag color="error">Vencido</Tag>
+                                                    : daysLeft < 30
+                                                        ? <Tag color="warning">{daysLeft}d restantes</Tag>
+                                                        : <Tag color="success">{daysLeft}d restantes</Tag>
+                                            )}
+                                            {c.contract_file_url && (
+                                                <div style={{ marginTop: 6 }}>
+                                                    <a href={c.contract_file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb' }}>
+                                                        📎 Ver archivo
+                                                    </a>
+                                                </div>
+                                            )}
+                                            <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                                                Registrado: {dayjs(c.created_at).format('DD/MM/YYYY')}
+                                            </Text>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </Modal>
+
+            {/* ── Modal Alertas ── */}
             <Modal {...modalProps} title={<b>Configurar Alertas de Vencimiento</b>} width={500} centered>
                 <Form {...formProps} layout="vertical">
                     <Form.Item label="Activar Alertas para este Terreno" name="expiration_alert_active">
@@ -1942,6 +2184,7 @@ function ContractsTab() {
         </div>
     );
 }
+
 
 function LandlordsTab() {
     const { tableProps } = useTable({ resource: "landlords", syncWithLocation: false });

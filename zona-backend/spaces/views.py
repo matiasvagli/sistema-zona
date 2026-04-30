@@ -8,11 +8,11 @@ from rest_framework.response import Response
 from django.db.models import Prefetch
 from accounts.permissions import IsAdminUser
 from work_orders.models import WorkOrder
-from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot
+from .models import Landlord, Location, Structure, StructureFace, SpaceExpense, SpaceRental, LEDSlot, LocationContract
 from .serializers import (
     LandlordSerializer, LocationSerializer, StructureSerializer,
     StructureFaceSerializer, SpaceExpenseSerializer, SpaceRentalSerializer,
-    LEDSlotSerializer
+    LEDSlotSerializer, LocationContractSerializer
 )
 
 _faces_with_rentals = Prefetch(
@@ -109,6 +109,53 @@ class LocationViewSet(viewsets.ModelViewSet):
         serializer = SpaceExpenseSerializer(created, many=True)
         return Response({'created': len(created), 'expenses': serializer.data})
 
+    @action(detail=True, methods=['post'], url_path='renew', parser_classes=[MultiPartParser, FormParser, JSONParser])
+    def renew(self, request, pk=None):
+        """Renueva el contrato del terreno: guarda el historial y actualiza los datos activos."""
+        location = self.get_object()
+        data = request.data
+
+        # Validaciones básicas
+        required = ['contract_start_date', 'contract_end_date', 'rent_amount']
+        for field in required:
+            if not data.get(field):
+                return Response({'error': f'El campo {field} es obligatorio.'}, status=400)
+
+        try:
+            start = date.fromisoformat(str(data['contract_start_date']))
+            end = date.fromisoformat(str(data['contract_end_date']))
+        except ValueError:
+            return Response({'error': 'Formato de fecha inválido. Usar YYYY-MM-DD.'}, status=400)
+
+        if end <= start:
+            return Response({'error': 'La fecha de vencimiento debe ser posterior al inicio.'}, status=400)
+
+        # Guardar contrato histórico
+        contract = LocationContract(
+            location=location,
+            contract_start_date=start,
+            contract_end_date=end,
+            rent_amount=data['rent_amount'],
+            rent_period=data.get('rent_period', location.rent_period),
+            notes=data.get('notes', ''),
+        )
+        if 'contract_file' in request.FILES:
+            contract.contract_file = request.FILES['contract_file']
+        contract.save()
+
+        # Actualizar los campos activos del terreno
+        location.contract_start_date = start
+        location.contract_end_date = end
+        location.rent_amount = data['rent_amount']
+        location.rent_period = data.get('rent_period', location.rent_period)
+        location.save()
+
+        serializer = self.get_serializer(location)
+        return Response({
+            'location': serializer.data,
+            'contract': LocationContractSerializer(contract, context={'request': request}).data,
+        })
+
 
 class StructureViewSet(viewsets.ModelViewSet):
     queryset = Structure.objects.select_related('location').prefetch_related(
@@ -161,3 +208,11 @@ class LEDSlotViewSet(viewsets.ModelViewSet):
     serializer_class = LEDSlotSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     filterset_fields = ('structure', 'client', 'campaign', 'status')
+
+
+class LocationContractViewSet(viewsets.ReadOnlyModelViewSet):
+    """Historial de contratos de terrenos (solo lectura; se crean vía /locations/{id}/renew/)."""
+    queryset = LocationContract.objects.select_related('location').all()
+    serializer_class = LocationContractSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    filterset_fields = ('location',)

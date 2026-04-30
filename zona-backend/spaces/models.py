@@ -237,3 +237,38 @@ class LEDSlot(models.Model):
 
     def __str__(self):
         return f"LED Slot: {self.client.name} - {self.duration}{self.time_unit[0]} x{self.repetitions_per_hour}/h"
+
+
+class LocationContract(models.Model):
+    """Historial de contratos de arrendamiento de un terreno."""
+    location = models.ForeignKey(
+        Location,
+        on_delete=models.CASCADE,
+        related_name='contracts',
+        verbose_name='Terreno'
+    )
+    contract_start_date = models.DateField(verbose_name='Inicio del contrato')
+    contract_end_date = models.DateField(verbose_name='Vencimiento del contrato')
+    rent_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        verbose_name='Monto de alquiler'
+    )
+    rent_period = models.CharField(
+        max_length=20,
+        choices=Location.RentPeriod.choices,
+        default=Location.RentPeriod.MENSUAL,
+        verbose_name='Período de pago'
+    )
+    contract_file = models.FileField(
+        upload_to='contracts/locations/history/',
+        null=True, blank=True,
+        verbose_name='Archivo del contrato'
+    )
+    notes = models.TextField(blank=True, null=True, verbose_name='Observaciones')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-contract_start_date']
+
+    def __str__(self):
+        return f"{self.location.name} — {self.contract_start_date} / {self.contract_end_date}"

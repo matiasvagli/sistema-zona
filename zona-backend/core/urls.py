@@ -19,9 +19,9 @@ from production.views import SectorViewSet, SectorTaskViewSet
 from spaces.views import (
     LandlordViewSet, LocationViewSet, StructureViewSet, 
     StructureFaceViewSet, SpaceExpenseViewSet, SpaceRentalViewSet,
-    LEDSlotViewSet
+    LEDSlotViewSet, LocationContractViewSet
 )
-from campaigns.views import CampaignViewSet, CampaignSpaceViewSet
+from campaigns.views import CampaignViewSet, CampaignSpaceViewSet, CampaignPaymentViewSet
 from employees.views import EmployeeViewSet
 
 router = DefaultRouter()
@@ -47,9 +47,11 @@ router.register(r'structure-faces', StructureFaceViewSet)
 router.register(r'space-expenses', SpaceExpenseViewSet)
 router.register(r'space-rentals', SpaceRentalViewSet)
 router.register(r'led-slots', LEDSlotViewSet)
+router.register(r'location-contracts', LocationContractViewSet)
 
 router.register(r'campaigns', CampaignViewSet)
 router.register(r'campaign-spaces', CampaignSpaceViewSet)
+router.register(r'campaign-payments', CampaignPaymentViewSet)
 router.register(r'employees', EmployeeViewSet)
 router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'suppliers', SupplierViewSet)

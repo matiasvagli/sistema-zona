@@ -3,20 +3,37 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from accounts.permissions import IsAdminUser
-from .models import Campaign, CampaignSpace
-from .serializers import CampaignSerializer, CampaignSpaceSerializer
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .models import Campaign, CampaignSpace, CampaignPayment
+from .serializers import CampaignSerializer, CampaignSpaceSerializer, CampaignPaymentSerializer
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     queryset = Campaign.objects.select_related('client').prefetch_related(
         'spaces__space_rental__face__structure__location',
         'spaces__space_rental__client',
+        'payments',
         'work_orders',
     ).all()
     serializer_class = CampaignSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     search_fields = ('name',)
     filterset_fields = ('client', 'status')
+
+    def perform_create(self, serializer):
+        campaign = serializer.save()
+        campaign.generate_payments()
+
+    def perform_update(self, serializer):
+        campaign = serializer.save()
+        campaign.generate_payments()
+
+    @action(detail=True, methods=['post'], url_path='regenerar-pagos')
+    def regenerar_pagos(self, request, pk=None):
+        campaign = self.get_object()
+        campaign.generate_payments()
+        return Response({'detail': 'Pagos regenerados correctamente.'})
 
     @action(detail=True, methods=['post'], url_path='aprobar')
     def aprobar(self, request, pk=None):
@@ -38,6 +55,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
         )
         campaign.status = 'aprobado'
         campaign.save(update_fields=['status'])
+        campaign.generate_payments()
         return Response(
             {'work_order_id': wo.id, 'work_order_title': str(wo)},
             status=drf_status.HTTP_201_CREATED
@@ -53,3 +71,11 @@ class CampaignSpaceViewSet(viewsets.ModelViewSet):
     serializer_class = CampaignSpaceSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
     filterset_fields = ('campaign',)
+
+
+class CampaignPaymentViewSet(viewsets.ModelViewSet):
+    queryset = CampaignPayment.objects.select_related('campaign__client').all()
+    serializer_class = CampaignPaymentSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    filterset_fields = ('campaign', 'status')
+    http_method_names = ['get', 'patch', 'head', 'options']

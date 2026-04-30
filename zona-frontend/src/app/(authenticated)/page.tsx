@@ -182,10 +182,6 @@ export default function Dashboard() {
     return filtered;
   }, [workOrders, priorityFilter, tasksResult]);
 
-  if (userLoading) {
-    return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
-  }
-
   const budgets: any[] = (budgetsResult?.data || []) as any[];
   const clients: any[] = (clientsResult?.data || []) as any[];
   const products: any[] = (productsResult?.data || []) as any[];
@@ -208,6 +204,10 @@ export default function Dashboard() {
       return diff <= 45;
     });
   }, [locations]);
+
+  if (userLoading) {
+    return <div style={{ textAlign: "center", padding: 100 }}><Spin size="large" /></div>;
+  }
 
   const greeting = () => {
     const h = new Date().getHours();

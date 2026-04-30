@@ -4,15 +4,16 @@ import { AdminGuard } from "@/components/AdminGuard";
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useList, useInvalidate } from "@refinedev/core";
+import { useList, useInvalidate, useSelect } from "@refinedev/core";
 import {
   Typography, Button, Card, Tag, Table, Space, Tooltip,
   notification, Popconfirm, Input, Badge, Tabs,
+  Form, InputNumber, Select, Row, Col, Modal, Divider,
 } from "antd";
 import {
   PlusOutlined, EyeOutlined,
   FileTextOutlined, LinkOutlined, SearchOutlined,
-  ClearOutlined, FundOutlined,
+  ClearOutlined, FundOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
@@ -376,12 +377,62 @@ function CampaignVPTab() {
   const router = useRouter();
   const invalidate = useInvalidate();
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [form] = Form.useForm();
+  const [modalStartDate, setModalStartDate] = useState("");
+  const [modalEndDate, setModalEndDate] = useState("");
 
   const { result, query } = useList({
     resource: "campaigns",
     pagination: { pageSize: 200 },
     sorters: [{ field: "id", order: "desc" }],
   });
+
+  const { options: clientOptions } = useSelect({
+    resource: "clients",
+    optionLabel: "name",
+    optionValue: "id",
+  });
+
+  const { options: allFaceOptions } = useSelect({
+    resource: "structure-faces",
+    optionLabel: "display_name",
+    optionValue: "id",
+    filters: [{ field: "is_active", operator: "eq", value: true }],
+    pagination: { pageSize: 200 },
+  });
+
+  const { result: rentalsResult } = useList({
+    resource: "space-rentals",
+    pagination: { pageSize: 1000 },
+    queryOptions: { enabled: createModalOpen },
+  });
+  const allRentals: any[] = rentalsResult?.data || [];
+
+  const occupiedFaceIds = useMemo(() => {
+    if (!modalStartDate || !modalEndDate) return new Set<number>();
+    return new Set<number>(
+      allRentals
+        .filter((r: any) => r.status !== "finalizado")
+        .filter((r: any) => r.start_date <= modalEndDate && r.end_date >= modalStartDate)
+        .map((r: any) => Number(r.face))
+    );
+  }, [allRentals, modalStartDate, modalEndDate]);
+
+  const faceOptionsWithAvail = useMemo(() =>
+    (allFaceOptions || []).map((opt) => {
+      const hasDate = !!(modalStartDate && modalEndDate);
+      const occupied = hasDate && occupiedFaceIds.has(Number(opt.value));
+      return {
+        value: opt.value,
+        label: String(opt.label),
+        dotColor: !hasDate ? "#94a3b8" : occupied ? "#ef4444" : "#22c55e",
+        disabled: occupied,
+      };
+    }),
+    [allFaceOptions, occupiedFaceIds, modalStartDate, modalEndDate]
+  );
 
   const allCampaigns: any[] = result?.data || [];
   const campaigns = allCampaigns.filter((c: any) =>
@@ -405,62 +456,250 @@ function CampaignVPTab() {
     }
   };
 
+  const closeCreateModal = () => {
+    setCreateModalOpen(false);
+    form.resetFields();
+    setModalStartDate("");
+    setModalEndDate("");
+  };
+
+  const handleCreate = async () => {
+    let values: any;
+    try { values = await form.validateFields(); } catch { return; }
+    const { space_assignments, ...campaignValues } = values;
+    const assignments: any[] = (space_assignments || []).filter((a: any) => a?.face_id);
+    const totalFromSpaces = assignments.reduce((sum: number, a: any) => sum + Number(a.price || 0), 0);
+    setIsCreating(true);
+    try {
+      const { data: campaignData } = await axiosInstance.post(`${API}/campaigns/`, {
+        ...campaignValues,
+        status: "presupuesto",
+        budget_total: totalFromSpaces,
+      });
+      const campaignId = campaignData.id;
+      for (const assignment of assignments) {
+        const { data: rentalData } = await axiosInstance.post(`${API}/space-rentals/`, {
+          face: assignment.face_id,
+          client: campaignValues.client,
+          campaign: campaignId,
+          start_date: campaignValues.start_date,
+          end_date: campaignValues.end_date,
+          price: assignment.price || 0,
+          status: "reservado",
+        });
+        await axiosInstance.post(`${API}/campaign-spaces/`, {
+          campaign: campaignId,
+          space_rental: rentalData.id,
+        });
+      }
+      notification.success({
+        message: assignments.length > 0
+          ? `Campaña creada con ${assignments.length} espacio(s)`
+          : "Campaña creada correctamente",
+      });
+      invalidate({ resource: "campaigns", invalidates: ["list"] });
+      invalidate({ resource: "space-rentals", invalidates: ["list"] });
+      closeCreateModal();
+    } catch {
+      notification.error({ message: "Error al crear la campaña" });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const CAMP_COLORS: Record<string, string> = { borrador: "default", presupuesto: "orange", aprobado: "geekblue" };
   const CAMP_LABELS: Record<string, string> = { borrador: "Borrador", presupuesto: "Presupuesto", aprobado: "Aprobado" };
 
   return (
-    <Card variant="borderless" style={{ borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.04)", overflow: "hidden" }} styles={{ body: { padding: 0 } }}>
-      <Table
-        className="budget-table"
-        dataSource={campaigns}
-        rowKey="id"
-        loading={query.isLoading}
-        pagination={{ pageSize: 15, showSizeChanger: false, position: ["bottomRight"], style: { margin: "24px" } }}
-        locale={{ emptyText: "Sin campañas en presupuesto" }}
+    <>
+      <Card variant="borderless" style={{ borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.04)", overflow: "hidden" }} styles={{ body: { padding: 0 } }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff" }}>
+          <Text style={{ color: "#64748b", fontSize: 14, fontWeight: 600 }}>Presupuestos de Vía Pública</Text>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setCreateModalOpen(true)}
+            style={{ borderRadius: 10, height: 40, padding: "0 20px", fontWeight: 700, background: "#0f172a" }}
+          >
+            Nuevo Presupuesto VP
+          </Button>
+        </div>
+        <Table
+          className="budget-table"
+          dataSource={campaigns}
+          rowKey="id"
+          loading={query.isLoading}
+          pagination={{ pageSize: 15, showSizeChanger: false, position: ["bottomRight"], style: { margin: "24px" } }}
+          locale={{ emptyText: "Sin campañas en presupuesto" }}
+        >
+          <Table.Column title="Campaña" dataIndex="name" render={(v: string) => <Text strong>{v}</Text>} />
+          <Table.Column title="Cliente" dataIndex="client_name" render={(v: string) => v || <Text type="secondary">—</Text>} />
+          <Table.Column title="Estado" dataIndex="status" width={120} render={(v: string) => (
+            <Tag color={CAMP_COLORS[v] || "default"}>{CAMP_LABELS[v] || v}</Tag>
+          )} />
+          <Table.Column title="Presupuesto" dataIndex="budget_total" width={140} render={(v: number) => (
+            <Text strong style={{ color: "#52c41a" }}>${Number(v || 0).toLocaleString("es-AR")}</Text>
+          )} />
+          <Table.Column title="Espacios" dataIndex="spaces_count" width={80} render={(v: number) => (
+            <Text type="secondary">{v ?? 0}</Text>
+          )} />
+          <Table.Column title="Inicio" dataIndex="start_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
+          <Table.Column title="Fin" dataIndex="end_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
+          <Table.Column title="OT" dataIndex="work_order_id" width={100} render={(woId: number | null) =>
+            woId ? (
+              <Button type="link" size="small" icon={<LinkOutlined />}
+                onClick={() => router.push(`/work-orders/${woId}`)} style={{ padding: 0 }}>
+                OT-{String(woId).padStart(4, "0")}
+              </Button>
+            ) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+          } />
+          <Table.Column title="Acciones" width={160} render={(_: any, record: any) => (
+            <Space>
+              {(record.status === "presupuesto" || record.status === "borrador") && !record.work_order_id && (
+                <Popconfirm
+                  title="¿Aprobar campaña?"
+                  description="Se generará una Orden de Trabajo vinculada."
+                  okText="Aprobar" cancelText="Cancelar"
+                  onConfirm={() => handleAprobar(record.id)}
+                >
+                  <Button size="small" type="primary" loading={approvingId === record.id}
+                    style={{ background: "#7c3aed", border: "none", borderRadius: 6, fontSize: 11 }}>
+                    Aprobar → OT
+                  </Button>
+                </Popconfirm>
+              )}
+              <Tooltip title="Ver en Campañas">
+                <Button size="small" type="dashed" icon={<EyeOutlined />}
+                  onClick={() => router.push("/campaigns")} />
+              </Tooltip>
+            </Space>
+          )} />
+        </Table>
+      </Card>
+
+      <Modal
+        open={createModalOpen}
+        onCancel={closeCreateModal}
+        onOk={handleCreate}
+        title={<b>Nuevo Presupuesto Vía Pública</b>}
+        width={700}
+        centered
+        okButtonProps={{ loading: isCreating }}
+        okText="Crear Campaña"
+        cancelText="Cancelar"
       >
-        <Table.Column title="Campaña" dataIndex="name" render={(v: string) => <Text strong>{v}</Text>} />
-        <Table.Column title="Cliente" dataIndex="client_name" render={(v: string) => v || <Text type="secondary">—</Text>} />
-        <Table.Column title="Estado" dataIndex="status" width={120} render={(v: string) => (
-          <Tag color={CAMP_COLORS[v] || "default"}>{CAMP_LABELS[v] || v}</Tag>
-        )} />
-        <Table.Column title="Presupuesto" dataIndex="budget_total" width={140} render={(v: number) => (
-          <Text strong style={{ color: "#52c41a" }}>${Number(v || 0).toLocaleString("es-AR")}</Text>
-        )} />
-        <Table.Column title="Espacios" dataIndex="spaces_count" width={80} render={(v: number) => (
-          <Text type="secondary">{v ?? 0}</Text>
-        )} />
-        <Table.Column title="Inicio" dataIndex="start_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
-        <Table.Column title="Fin" dataIndex="end_date" width={110} render={(v: string) => v ? dayjs(v).format("DD/MM/YYYY") : "—"} />
-        <Table.Column title="OT" dataIndex="work_order_id" width={100} render={(woId: number | null) =>
-          woId ? (
-            <Button type="link" size="small" icon={<LinkOutlined />}
-              onClick={() => router.push(`/work-orders/${woId}`)} style={{ padding: 0 }}>
-              OT-{String(woId).padStart(4, "0")}
-            </Button>
-          ) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
-        } />
-        <Table.Column title="Acciones" width={150} render={(_: any, record: any) => (
-          <Space>
-            {(record.status === "presupuesto" || record.status === "borrador") && !record.work_order_id && (
-              <Popconfirm
-                title="¿Aprobar campaña?"
-                description="Se generará una Orden de Trabajo vinculada."
-                okText="Aprobar" cancelText="Cancelar"
-                onConfirm={() => handleAprobar(record.id)}
-              >
-                <Button size="small" type="primary" loading={approvingId === record.id}
-                  style={{ background: "#7c3aed", border: "none", borderRadius: 6, fontSize: 11 }}>
-                  Aprobar → OT
-                </Button>
-              </Popconfirm>
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="Nombre de la Campaña" name="name" rules={[{ required: true, message: "Requerido" }]}>
+            <Input size="large" placeholder="Ej: Campaña Verano 2025" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Cliente" name="client" rules={[{ required: true, message: "Requerido" }]}>
+                <Select size="large" options={clientOptions} placeholder="Seleccionar cliente" showSearch optionFilterProp="label" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Tipo de Facturación" name="billing_type" initialValue="contrato">
+                <Select size="large" options={[
+                  { label: "Por Contrato (pago único)", value: "contrato" },
+                  { label: "Mensual", value: "mensual" },
+                ]} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Fecha Inicio" name="start_date" rules={[{ required: true, message: "Requerido" }]}>
+                <Input type="date" size="large" style={{ width: "100%" }}
+                  onChange={(e) => setModalStartDate(e.target.value)} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Fecha Fin" name="end_date" rules={[{ required: true, message: "Requerido" }]}>
+                <Input type="date" size="large" style={{ width: "100%" }}
+                  onChange={(e) => setModalEndDate(e.target.value)} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider style={{ margin: "16px 0" }}>
+            <span style={{ color: "#64748b", fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>ESPACIOS / ESTRUCTURAS (OPCIONAL)</span>
+          </Divider>
+
+          <div style={{ marginBottom: 12, fontSize: 12 }}>
+            {modalStartDate && modalEndDate ? (
+              <Space size={16} style={{ color: "#64748b" }}>
+                <span>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22c55e", marginRight: 4, verticalAlign: "middle" }} />
+                  Disponible
+                </span>
+                <span>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#ef4444", marginRight: 4, verticalAlign: "middle" }} />
+                  Ocupado
+                </span>
+              </Space>
+            ) : (
+              <span style={{ color: "#94a3b8" }}>Seleccioná las fechas para ver disponibilidad de espacios.</span>
             )}
-            <Tooltip title="Ver en Campañas">
-              <Button size="small" type="dashed" icon={<EyeOutlined />}
-                onClick={() => router.push("/campaigns")} />
-            </Tooltip>
-          </Space>
-        )} />
-      </Table>
-    </Card>
+          </div>
+
+          <Form.List name="space_assignments">
+            {(fields, { add, remove }) => (
+              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 12, marginBottom: 16 }}>
+                {fields.map(({ key, name }) => (
+                  <Row key={key} gutter={12} align="middle" style={{ marginBottom: 8 }}>
+                    <Col span={13}>
+                      <Form.Item name={[name, "face_id"]} style={{ marginBottom: 0 }}>
+                        <Select
+                          size="large"
+                          options={faceOptionsWithAvail}
+                          placeholder="Seleccionar cara/espacio..."
+                          showSearch
+                          filterOption={(input, option: any) =>
+                            option?.label?.toLowerCase().includes(input.toLowerCase())
+                          }
+                          optionRender={(opt) => (
+                            <span>
+                              <span style={{
+                                display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+                                marginRight: 8, verticalAlign: "middle",
+                                background: (opt.data as any).dotColor || "#94a3b8",
+                              }} />
+                              {opt.label}
+                            </span>
+                          )}
+                          allowClear
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={9}>
+                      <Form.Item name={[name, "price"]} style={{ marginBottom: 0 }}>
+                        <InputNumber prefix="$" size="large" style={{ width: "100%" }} min={0} placeholder="Precio alquiler" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={2} style={{ textAlign: "center" }}>
+                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                    </Col>
+                  </Row>
+                ))}
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}
+                  style={{ width: "100%", marginTop: fields.length > 0 ? 8 : 0 }}>
+                  Agregar Espacio
+                </Button>
+                {fields.length > 0 && (
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                    Se creará una Reserva por cada espacio agregado.
+                  </div>
+                )}
+              </div>
+            )}
+          </Form.List>
+
+          <Form.Item label="Notas Internas" name="notes">
+            <Input.TextArea rows={3} placeholder="Descripción de la campaña, referencias, observaciones..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   );
 }
