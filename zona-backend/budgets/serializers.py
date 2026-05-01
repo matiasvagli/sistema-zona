@@ -11,6 +11,10 @@ class BudgetItemSerializer(serializers.ModelSerializer):
 
 class BudgetSerializer(serializers.ModelSerializer):
     client_name    = serializers.ReadOnlyField(source='client.name')
+    client_tax_id  = serializers.ReadOnlyField(source='client.tax_id')
+    client_email   = serializers.ReadOnlyField(source='client.email')
+    client_phone   = serializers.ReadOnlyField(source='client.phone')
+    client_address = serializers.ReadOnlyField(source='client.address')
     total_amount   = serializers.ReadOnlyField()
     iva_amount     = serializers.ReadOnlyField()
     total_with_iva = serializers.ReadOnlyField()

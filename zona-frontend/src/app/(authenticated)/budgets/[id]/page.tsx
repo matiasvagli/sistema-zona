@@ -11,7 +11,7 @@ import {
 } from "antd";
 import {
   ArrowLeftOutlined, CheckCircleOutlined, FileTextOutlined, LinkOutlined,
-  PlusOutlined, EditOutlined, DeleteOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, PrinterOutlined,
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
@@ -302,8 +302,8 @@ export default function BudgetDetailPage() {
             <Button
               icon={<LinkOutlined />}
               onClick={() => router.push(`/work-orders/${budget.work_order}`)}
-              style={{ 
-                borderRadius: "10px", 
+              style={{
+                borderRadius: "10px",
                 height: "40px",
                 fontWeight: 600
               }}
@@ -311,6 +311,13 @@ export default function BudgetDetailPage() {
               Ver OT #{budget.work_order}
             </Button>
           )}
+          <Button
+            icon={<PrinterOutlined />}
+            onClick={() => window.open(`/budgets/${id}/presupuesto`, "_blank")}
+            style={{ borderRadius: "10px", height: "40px", fontWeight: 600 }}
+          >
+            Descargar PDF
+          </Button>
         </div>
       </div>
 

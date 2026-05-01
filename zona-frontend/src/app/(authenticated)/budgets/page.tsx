@@ -17,6 +17,7 @@ import {
 } from "@ant-design/icons";
 import { axiosInstance } from "@/utils/axios-instance";
 import dayjs from "dayjs";
+import { ClientSelect } from "@/components/ClientSelect";
 
 const { Title, Text } = Typography;
 import { BillingModal } from "@/components/billing/BillingModal";
@@ -391,12 +392,6 @@ function CampaignVPTab() {
     sorters: [{ field: "id", order: "desc" }],
   });
 
-  const { options: clientOptions } = useSelect({
-    resource: "clients",
-    optionLabel: "name",
-    optionValue: "id",
-  });
-
   const { options: allFaceOptions } = useSelect({
     resource: "structure-faces",
     optionLabel: "display_name",
@@ -408,7 +403,6 @@ function CampaignVPTab() {
   const { result: rentalsResult } = useList({
     resource: "space-rentals",
     pagination: { pageSize: 1000 },
-    queryOptions: { enabled: createModalOpen },
   });
   const allRentals: any[] = rentalsResult?.data || [];
 
@@ -641,7 +635,7 @@ function CampaignVPTab() {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item label="Cliente" name="client" rules={[{ required: true, message: "Requerido" }]}>
-                <Select size="large" options={clientOptions} placeholder="Seleccionar cliente" showSearch optionFilterProp="label" />
+                <ClientSelect size="large" />
               </Form.Item>
             </Col>
             <Col span={12}>

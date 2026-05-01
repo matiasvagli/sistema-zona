@@ -90,7 +90,7 @@ export function ClientSelect({ value, onChange, style, size }: ClientSelectProps
           <Form.Item name="name" label="Razón Social / Nombre" rules={[{ required: true, message: "Requerido" }]}>
             <Input placeholder="Ej: Empresa S.A. o Juan Pérez" />
           </Form.Item>
-          <Form.Item name="tax_id" label="CUIT / Identificación Fiscal" rules={[{ required: true, message: "Requerido" }]}>
+          <Form.Item name="tax_id" label="CUIT / Identificación Fiscal (opcional)">
             <Input placeholder="20-XXXXXXXX-X" />
           </Form.Item>
           <Form.Item name="email" label="Email" rules={[{ type: "email", message: "Email inválido" }]}>

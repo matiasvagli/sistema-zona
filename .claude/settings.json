@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/home/matiasdev/sistema-zona/zona-frontend/src/app/(authenticated)/budgets/[id]"
+    ]
+  }
+}
